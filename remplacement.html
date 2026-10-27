@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Remplacement - Pilotage RH 1er degré</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+:root{--bleu:#1F3A5F;--bleu-c:#BDD7EE;--bleu-m:#7FA6D1;--texte:#1B2430;--gris:#4A5565;--bord:#DDE3EA;--fond:#F2F5F9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fond);color:var(--texte);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+.entete{background:var(--bleu);color:#fff;padding:22px 32px}
+.entete .sur{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--bleu-c)}
+.entete h1{margin:4px 0 0;font-size:28px;line-height:1.15}
+.entete .sous{margin-top:4px;font-size:15px;color:#DCE8F5}
+main{max-width:1200px;margin:0 auto;padding:22px 32px 40px;display:flex;flex-direction:column;gap:20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.kpi{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:16px 22px}
+.kpi .l{font-size:15px;font-weight:600;color:var(--gris)}
+.kpi .v{font-size:42px;font-weight:700;color:var(--bleu);line-height:1.1;margin-top:6px}
+.kpi .v small{font-size:17px;color:var(--gris);font-weight:600;margin-left:6px}
+.kpi .c{font-size:14px;color:var(--gris);margin-top:6px}
+.bloc{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:20px 24px}
+.bloc h2{margin:0;font-size:19px;color:var(--bleu)}
+.bloc .aide{font-size:14px;color:var(--gris);margin:3px 0 12px}
+.onglets{display:flex;gap:8px;margin:12px 0 4px;flex-wrap:wrap}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+button{font:inherit;cursor:pointer}
+.onglets button{padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid var(--bord);border-bottom:none;background:#EEF2F6;color:var(--gris)}
+.onglets button.on{background:#fff;color:var(--bleu);font-weight:700}
+.chips button{padding:5px 14px;border-radius:999px;border:1px solid var(--bleu);background:#fff;color:var(--bleu);font-size:14px}
+.chips button.on{background:var(--bleu);color:#fff;font-weight:700}
+.liste{display:grid;grid-template-columns:minmax(150px,300px) minmax(80px,1fr) 70px 90px 90px;gap:7px 12px;align-items:center;font-size:15px}
+.liste .th{font-weight:600;color:var(--gris);font-size:14px}.liste .r{text-align:right}
+.liste .nom small{display:block;color:var(--gris);font-size:12px}
+.piste{position:relative;background:#EEF2F6;border-radius:4px;height:16px}
+.piste i{display:block;height:16px;border-radius:4px;background:var(--bleu)}
+.piste u{position:absolute;top:-3px;bottom:-3px;width:2px;background:#C8650B}
+.note{font-size:13px;color:var(--gris);margin-top:10px}
+.note span{display:inline-block;width:10px;height:3px;background:#C8650B;margin-right:6px;vertical-align:middle}
+.legende{display:flex;gap:16px;font-size:14px;color:var(--gris);margin-bottom:8px;flex-wrap:wrap}
+.legende span::before{content:"";display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:3px;background:var(--c)}
+svg{width:100%;height:auto;display:block}
+.erreur{background:#fde8e8;color:#8a1c1c;border-radius:8px;padding:12px 16px;font-size:15px}
+</style>
+</head>
+<body>
+<div class="entete">
+  <div class="sur">DSDEN du Nord · DPEP</div>
+  <h1>Remplacement</h1>
+  <div class="sous">Efficacité, efficience et absences à remplacer</div>
+</div>
+<main>
+  <div id="erreur" class="erreur" hidden></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="bloc">
+    <h2>Résultats par circonscription</h2>
+    <div class="onglets" id="onglets"></div>
+    <div class="aide" id="aide"></div>
+    <div class="chips" id="chips"></div>
+    <div class="liste" id="liste"></div>
+    <div class="note"><span></span>Repère orange : taux sur l'ensemble du département.</div>
+  </div>
+  <div class="bloc">
+    <h2>Journées d'absence mois par mois</h2>
+    <div class="aide">Année scolaire en cours en foncé, années précédentes en clair. Septembre à août.</div>
+    <div class="legende" id="legende"></div>
+    <div id="graph"></div>
+  </div>
+</main>
+<script>
+var MOIS=["Sept.","Oct.","Nov.","Déc.","Janv.","Févr.","Mars","Avr.","Mai","Juin","Juil.","Août"];
+var R=[],E=[],A=[],onglet="eff",bassin=null;
+function cle(s){return String(s).toLowerCase().normalize("NFD").replace(/[^a-z]/g,"");}
+function col(t,noms){
+  var ks=Object.keys(t);
+  for(var n=0;n<noms.length;n++)for(var i=0;i<ks.length;i++)if(cle(ks[i])===noms[n])return t[ks[i]];
+  for(var n=0;n<noms.length;n++)for(var i=0;i<ks.length;i++)if(cle(ks[i]).indexOf(noms[n])===0)return t[ks[i]];
+  return [];
+}
+function trouver(ids,mot){for(var i=0;i<ids.length;i++)if(cle(ids[i]).indexOf(mot)>=0)return ids[i];return null;}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function f0(v){return Number(v||0).toLocaleString("fr-FR",{maximumFractionDigits:0});}
+function pc(v){return (v*100).toLocaleString("fr-FR",{minimumFractionDigits:1,maximumFractionDigits:1})+" %";}
+function nomC(s){return String(s).replace(/^Circonscription\s+(de\s+|d')?/i,"");}
+function nomB(s){return String(s).replace(/^Bassin\s+(de\s+|d')?/i,"");}
+function tab(t,m){var o=[],c={};Object.keys(m).forEach(function(k){c[k]=col(t,m[k]);});
+  var n=(c[Object.keys(m)[0]]||[]).length;
+  for(var i=0;i<n;i++){var r={};Object.keys(m).forEach(function(k){r[k]=c[k][i];});o.push(r);}return o;}
+
+async function charger(){
+  var ids=await grist.docApi.listTables();
+  var a=trouver(ids,"remplacement"), b=trouver(ids,"efficience"), c=trouver(ids,"absences");
+  if(!a||!b||!c) throw new Error("table introuvable parmi : "+ids.join(", "));
+  R=tab(await grist.docApi.fetchTable(a),{b:["bassin"],c:["circonscription"],a:["journeesdabsence","journeesda"],r:["journeesremplacees"],t:["tauxdefficacite","taux"]})
+    .map(function(x){return {b:x.b,c:x.c,a:+x.a||0,r:+x.r||0,t:+x.t||0};});
+  E=tab(await grist.docApi.fetchTable(b),{y:["anneescolaire"],b:["bassin"],c:["circonscription"],s:["demijournees"],p:["potentiel"],t:["efficience"]})
+    .map(function(x){return {y:x.y,b:x.b,c:x.c,s:+x.s||0,p:+x.p||0,t:+x.t||0};});
+  A=tab(await grist.docApi.fetchTable(c),{y:["anneescolaire"],n:["rang"],v:["jours"]})
+    .map(function(x){return {y:x.y,n:+x.n,v:+x.v||0};});
+}
+
+function dessiner(){
+  var sa=0,sr=0; R.forEach(function(x){sa+=x.a;sr+=x.r;});
+  var ss=0,sp=0; E.forEach(function(x){ss+=x.s;sp+=x.p;});
+  var tE=sa?sr/sa:0, tF=sp?ss/sp:0;
+  var ys={};A.forEach(function(x){ys[x.y]=1;});var ans=Object.keys(ys).sort(), cur=ans[ans.length-1], prev=ans[ans.length-2];
+  var cm=0;A.forEach(function(x){if(x.y===cur&&x.n>cm)cm=x.n;});
+  function cum(y,jusqua){var s=0;A.forEach(function(x){if(x.y===y&&x.n<=jusqua)s+=x.v;});return s;}
+  var vc=cum(cur,cm), vp=prev?cum(prev,cm):0;
+  var anE=E.length?E[0].y:"";
+  document.getElementById("kpis").innerHTML=
+   '<div class="kpi"><div class="l">Efficacité du remplacement</div><div class="v">'+pc(tE)+'</div><div class="c">journées d\'absence remplacées</div></div>'+
+   '<div class="kpi"><div class="l">Efficience brute</div><div class="v">'+pc(tF)+'</div><div class="c">suppléance / potentiel'+(anE?' ('+esc(anE)+')':'')+'</div></div>'+
+   '<div class="kpi"><div class="l">Journées d\'absence, '+esc(cur||"")+'</div><div class="v">'+f0(vc)+'<small>jours</small></div><div class="c">de septembre à '+MOIS[cm-1].replace(".","").toLowerCase()+'</div></div>';
+
+  document.getElementById("onglets").innerHTML=
+   '<button data-o="eff"'+(onglet==="eff"?' class="on"':'')+'>Efficacité</button><button data-o=" efi"'+(onglet==="efi"?' class="on"':'')+'>Efficience</button>'.replace('data-o="ef i"','');
+  document.getElementById("onglets").innerHTML=
+   '<button data-o="eff"'+(onglet==="eff"?' class="on"':'')+'>Efficacité</button><button data-o="efi"'+(onglet==="efi"?' class="on"':'')+'>Efficience</button>';
+  document.querySelectorAll("#onglets button").forEach(function(b){b.onclick=function(){onglet=b.getAttribute("data-o");dessiner();};});
+  var S=onglet==="eff"?R:E, ref=onglet==="eff"?tE:tF;
+  document.getElementById("aide").textContent=onglet==="eff"?
+    "Part des journées d'absence qui ont été remplacées.":"Demi-journées de suppléance rapportées au potentiel brut de remplaçants.";
+  var bs=[];S.forEach(function(x){if(bs.indexOf(x.b)<0)bs.push(x.b);});bs.sort();
+  if(bassin&&bs.indexOf(bassin)<0)bassin=null;
+  document.getElementById("chips").innerHTML='<button data-b=""'+(!bassin?' class="on"':'')+'>Tout le département</button>'+
+    bs.map(function(b){return '<button data-b="'+esc(b)+'"'+(b===bassin?' class="on"':'')+'>'+esc(nomB(b))+'</button>';}).join("");
+  document.querySelectorAll("#chips button").forEach(function(b){b.onclick=function(){bassin=b.getAttribute("data-b")||null;dessiner();};});
+  var L=S.filter(function(x){return !bassin||x.b===bassin;}).sort(function(x,y){return y.t-x.t;});
+  var h='<div class="th">Circonscription</div><div></div><div class="th r">Taux</div><div class="th r">'+(onglet==="eff"?'Absences':'Suppléance')+'</div><div class="th r">'+(onglet==="eff"?'Remplacées':'Potentiel')+'</div>';
+  L.forEach(function(x){
+    var v=onglet==="eff"?x.a:x.s, w=onglet==="eff"?x.r:x.p;
+    h+='<div class="nom">'+esc(nomC(x.c))+(bassin?'':'<small>'+esc(nomB(x.b))+'</small>')+'</div>'+
+       '<div class="piste"><i style="width:'+Math.min(x.t*100,100)+'%"></i><u style="left:'+Math.min(ref*100,100)+'%"></u></div>'+
+       '<div class="r"><b>'+pc(x.t)+'</b></div><div class="r">'+f0(v)+'</div><div class="r">'+f0(w)+'</div>';
+  });
+  document.getElementById("liste").innerHTML=h;
+
+  // absences par mois
+  var mx=1;A.forEach(function(x){if(x.v>mx)mx=x.v;});
+  var cand=[1000,2000,5000,10000,20000],pas=20000;for(var i=0;i<cand.length;i++){if(mx/cand[i]<=6){pas=cand[i];break;}}
+  var top=Math.ceil(mx/pas)*pas,W=1100,H=320,gx=62,gy=26,gt=14,iw=W-gx-20,ih=H-gy-gt;
+  function X(k){return gx+iw*(k-0.5)/12;} function Y(v){return gt+ih*(1-v/top);}
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Journées d\'absence par mois">';
+  for(var v=0;v<=top;v+=pas)svg+='<line x1="'+gx+'" x2="'+(W-20)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#DDE3EA"/><text x="'+(gx-8)+'" y="'+(Y(v)+4)+'" text-anchor="end" font-size="13" fill="#4A5565">'+f0(v)+'</text>';
+  for(var k=0;k<12;k++)svg+='<text x="'+X(k+1)+'" y="'+(H-4)+'" text-anchor="middle" font-size="13" fill="#4A5565">'+MOIS[k]+'</text>';
+  var teintes=["#C9D6E4","#A9C3DC","#8FB0D2","#6F97C4"], leg="";
+  ans.forEach(function(y,iy){
+    var pts=A.filter(function(x){return x.y===y&&x.n>=1&&x.n<=12;}).sort(function(a,b){return a.n-b.n;});
+    var cur_=y===cur, coul=cur_?"#1F3A5F":teintes[Math.min(iy,teintes.length-1)], lg=cur_?4:2.5;
+    var d=pts.map(function(p,i){return (i?"L":"M")+X(p.n)+" "+Y(p.v);}).join(" ");
+    svg+='<path d="'+d+'" fill="none" stroke="'+coul+'" stroke-width="'+lg+'" stroke-linejoin="round" stroke-linecap="round"/>';
+    if(cur_)pts.forEach(function(p){svg+='<circle cx="'+X(p.n)+'" cy="'+Y(p.v)+'" r="5" fill="'+coul+'"/><text x="'+X(p.n)+'" y="'+(Y(p.v)-10)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#1F3A5F">'+f0(p.v)+'</text>';});
+    leg+='<span style="--c:'+coul+'">'+esc(y)+'</span>';
+  });
+  document.getElementById("graph").innerHTML=svg+'</svg>';
+  document.getElementById("legende").innerHTML=leg;
+}
+async function demarrer(){
+  var err=document.getElementById("erreur");
+  try{await charger();err.hidden=true;dessiner();}
+  catch(e){err.hidden=false;err.textContent="Impossible de lire les données : "+e.message;}
+}
+grist.ready({requiredAccess:"full"});
+grist.onRecords(demarrer);
+demarrer();
+</script>
+</body>
+</html>
