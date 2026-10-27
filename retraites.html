@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Retraites - Pilotage RH 1er degré</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+:root{--bleu:#1F3A5F;--bleu-c:#BDD7EE;--bleu-m:#7FA6D1;--texte:#1B2430;--gris:#4A5565;--bord:#DDE3EA;--fond:#F2F5F9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fond);color:var(--texte);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+.entete{background:var(--bleu);color:#fff;padding:22px 32px}
+.entete .sur{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--bleu-c)}
+.entete h1{margin:4px 0 0;font-size:28px;line-height:1.15}
+.entete .sous{margin-top:4px;font-size:15px;color:#DCE8F5}
+main{max-width:1200px;margin:0 auto;padding:22px 32px 40px;display:flex;flex-direction:column;gap:20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.kpi{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:16px 22px}
+.kpi .l{font-size:15px;font-weight:600;color:var(--gris)}
+.kpi .v{font-size:42px;font-weight:700;color:var(--bleu);line-height:1.1;margin-top:6px}
+.kpi .v small{font-size:17px;color:var(--gris);font-weight:600;margin-left:6px}
+.kpi .c{font-size:14px;color:var(--gris);margin-top:6px}
+.bloc{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:20px 24px}
+.bloc h2{margin:0;font-size:19px;color:var(--bleu)}
+.bloc .aide{font-size:14px;color:var(--gris);margin:3px 0 12px}
+.legende{display:flex;gap:18px;font-size:14px;color:var(--gris);margin-bottom:8px;flex-wrap:wrap}
+.legende span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+svg{width:100%;height:auto;display:block}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{font-size:14px;color:var(--gris);text-align:right;font-weight:600;padding:6px 10px;border-bottom:1px solid var(--bord)}
+td{padding:7px 10px;text-align:right;border-bottom:1px solid #EEF2F6}
+th:first-child,td:first-child{text-align:left}
+td.est{font-weight:700;color:var(--bleu)}
+tr.tot td{font-weight:700;border-top:2px solid var(--bord);border-bottom:none}
+.erreur{background:#fde8e8;color:#8a1c1c;border-radius:8px;padding:12px 16px;font-size:15px}
+</style>
+</head>
+<body>
+<div class="entete">
+  <div class="sur">DSDEN du Nord · DPEP</div>
+  <h1>Départs en retraite</h1>
+  <div class="sous">Projection sur les cinq prochaines années</div>
+</div>
+<main>
+  <div id="erreur" class="erreur" hidden></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="bloc">
+    <h2>Départs par année et par hypothèse</h2>
+    <div class="aide">L'estimation (âge moyen réel de départ) est la barre foncée.</div>
+    <div class="legende" id="legende"></div>
+    <div id="graph"></div>
+  </div>
+  <div class="bloc">
+    <h2>Détail par année</h2>
+    <div id="tab"></div>
+  </div>
+</main>
+<script>
+var COUL=["#BDD7EE","#1F3A5F","#7FA6D1","#A9B6C6"];
+function cle(s){return String(s).toLowerCase().normalize("NFD").replace(/[^a-z]/g,"");}
+function col(t,noms){
+  var ks=Object.keys(t);
+  for(var n=0;n<noms.length;n++)for(var i=0;i<ks.length;i++)if(cle(ks[i])===noms[n])return t[ks[i]];
+  for(var n=0;n<noms.length;n++)for(var i=0;i<ks.length;i++)if(cle(ks[i]).indexOf(noms[n])===0)return t[ks[i]];
+  return [];
+}
+function trouver(ids,mot){for(var i=0;i<ids.length;i++)if(cle(ids[i]).indexOf(mot)>=0)return ids[i];return null;}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function f0(v){return Number(v||0).toLocaleString("fr-FR",{maximumFractionDigits:0});}
+async function afficher(){
+  var err=document.getElementById("erreur");
+  try{
+    var ids=await grist.docApi.listTables(), tn=trouver(ids,"retraite");
+    if(!tn) throw new Error("table introuvable parmi : "+ids.join(", "));
+    var t=await grist.docApi.fetchTable(tn);
+    var a=col(t,["annee"]), h=col(t,["hypothese"]), d=col(t,["departs"]);
+    var annees=[], hyp=[], V={};
+    for(var i=0;i<a.length;i++){
+      if(annees.indexOf(+a[i])<0)annees.push(+a[i]);
+      if(hyp.indexOf(h[i])<0)hyp.push(h[i]);
+      V[a[i]+"|"+h[i]]=+d[i]||0;
+    }
+    annees.sort();
+    var est=hyp.filter(function(x){return cle(x).indexOf("estimation")>=0;})[0]||hyp[0];
+    // ordre : basse, estimation, haute
+    hyp.sort(function(x,y){var o=function(z){return cle(z).indexOf("basse")>=0?0:cle(z).indexOf("estimation")>=0?1:2;};return o(x)-o(y);});
+    var coul={}; hyp.forEach(function(x,i){coul[x]=(x===est)?"#1F3A5F":(cle(x).indexOf("basse")>=0?"#BDD7EE":"#7FA6D1");});
+    err.hidden=true;
+
+    var p=annees[0], q=annees[annees.length-1], ve=function(y){return V[y+"|"+est]||0;};
+    var cum=annees.reduce(function(s,y){return s+ve(y);},0);
+    document.getElementById("kpis").innerHTML=
+      '<div class="kpi"><div class="l">Départs estimés en '+p+'</div><div class="v">'+f0(ve(p))+'<small>agents</small></div><div class="c">première année de la projection</div></div>'+
+      '<div class="kpi"><div class="l">Départs estimés en '+q+'</div><div class="v">'+f0(ve(q))+'<small>agents</small></div><div class="c">'+(ve(p)?'× '+(ve(q)/ve(p)).toLocaleString("fr-FR",{maximumFractionDigits:1})+' par rapport à '+p:'')+'</div></div>'+
+      '<div class="kpi"><div class="l">Cumul '+p+' à '+q+'</div><div class="v">'+f0(cum)+'<small>agents</small></div><div class="c">estimation, '+annees.length+' années</div></div>';
+    document.getElementById("legende").innerHTML=hyp.map(function(x){return '<span style="--c:'+coul[x]+'">'+esc(x)+'</span>';}).join("");
+
+    var mx=Math.max.apply(null,Object.keys(V).map(function(k){return V[k];}).concat([1]));
+    var cand=[10,20,25,50,100,200],pas=cand[cand.length-1];
+    for(var c=0;c<cand.length;c++){if(mx/cand[c]<=6){pas=cand[c];break;}}
+    var top=Math.ceil(mx/pas)*pas,W=1100,H=320,gx=50,gy=26,gt=16,iw=W-gx-10,ih=H-gy-gt,bw=iw/annees.length;
+    var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Départs en retraite par année">';
+    for(var v=0;v<=top;v+=pas){var y=gt+ih*(1-v/top);svg+='<line x1="'+gx+'" x2="'+(W-10)+'" y1="'+y+'" y2="'+y+'" stroke="#DDE3EA"/><text x="'+(gx-8)+'" y="'+(y+4)+'" text-anchor="end" font-size="13" fill="#4A5565">'+v+'</text>';}
+    annees.forEach(function(an,k){
+      var x0=gx+k*bw, n=hyp.length, w=Math.min(bw*0.22,60), tot=w*n+4*(n-1), s=x0+(bw-tot)/2;
+      hyp.forEach(function(x,j){
+        var val=V[an+"|"+x]||0, hh=ih*val/top, xx=s+j*(w+4);
+        svg+='<rect x="'+xx+'" y="'+(gt+ih-hh)+'" width="'+w+'" height="'+Math.max(hh,0)+'" rx="3" fill="'+coul[x]+'"/>';
+        svg+='<text x="'+(xx+w/2)+'" y="'+(gt+ih-hh-5)+'" text-anchor="middle" font-size="'+(x===est?14:12)+'" font-weight="'+(x===est?700:400)+'" fill="#1F3A5F">'+val+'</text>';
+      });
+      svg+='<text x="'+(x0+bw/2)+'" y="'+(H-5)+'" text-anchor="middle" font-size="14" fill="#4A5565">'+an+'</text>';
+    });
+    document.getElementById("graph").innerHTML=svg+'</svg>';
+
+    var th='<table><tr><th>Année</th>'+hyp.map(function(x){return '<th>'+esc(x)+'</th>';}).join("")+'</tr>';
+    annees.forEach(function(an){th+='<tr><td>'+an+'</td>'+hyp.map(function(x){return '<td'+(x===est?' class="est"':'')+'>'+f0(V[an+"|"+x])+'</td>';}).join("")+'</tr>';});
+    th+='<tr class="tot"><td>Cumul</td>'+hyp.map(function(x){return '<td>'+f0(annees.reduce(function(s,y){return s+(V[y+"|"+x]||0);},0))+'</td>';}).join("")+'</tr></table>';
+    document.getElementById("tab").innerHTML=th;
+  }catch(e){err.hidden=false;err.textContent="Impossible de lire les données : "+e.message;}
+}
+grist.ready({requiredAccess:"full"});
+grist.onRecords(afficher);
+afficher();
+</script>
+</body>
+</html>
