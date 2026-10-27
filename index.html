@@ -51,6 +51,10 @@ function colonne(table, debut){
   for (var k in table){ if (cle(k).indexOf(debut) === 0) return table[k]; }
   return [];
 }
+function trouver(ids, mot){
+  for (var i=0;i<ids.length;i++){ if (cle(ids[i]).indexOf(mot) >= 0) return ids[i]; }
+  return null;
+}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 function nb(v){
   var n = Number(v);
@@ -64,8 +68,11 @@ function etiquetteUnite(u){return (u && u !== "%") ? esc(u) : "";}
 async function afficher(){
   var err = document.getElementById("erreur");
   try{
-    var ind = await grist.docApi.fetchTable(T_IND);
-    var vig = await grist.docApi.fetchTable(T_VIG);
+    var ids = await grist.docApi.listTables();
+    var tInd = trouver(ids,"indicateurs"), tVig = trouver(ids,"vigilance");
+    if (!tInd || !tVig) throw new Error("table introuvable parmi : " + ids.join(", "));
+    var ind = await grist.docApi.fetchTable(tInd);
+    var vig = await grist.docApi.fetchTable(tVig);
     err.hidden = true;
     var axe = colonne(ind,"axe"), lib = colonne(ind,"indic"), val = colonne(ind,"val"),
         uni = colonne(ind,"unit"), cmp = colonne(ind,"comp");
