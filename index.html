@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Synthèse - Pilotage RH 1er degré</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+:root{--bleu:#1F3A5F;--bleu-clair:#E8EEF5;--texte:#1B2430;--gris:#4A5565;--bord:#DDE3EA;--fond:#F2F5F9;--orange-f:#FFF0D6;--orange:#7A4300}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fond);color:var(--texte);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+.entete{background:var(--bleu);color:#fff;padding:22px 32px}
+.entete .sur{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#BDD7EE}
+.entete h1{margin:4px 0 0;font-size:28px;line-height:1.15}
+.entete .sous{margin-top:4px;font-size:15px;color:#DCE8F5}
+main{max-width:1200px;margin:0 auto;padding:24px 32px 40px;display:flex;flex-direction:column;gap:22px}
+.grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+.carte{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:18px 22px}
+.carte .axe{font-size:15px;font-weight:600;color:var(--gris)}
+.carte .grand{font-size:44px;font-weight:700;color:var(--bleu);line-height:1.1;margin-top:6px}
+.carte .grand small{font-size:18px;font-weight:600;color:var(--gris);margin-left:6px}
+.carte .lib{font-size:16px;margin-top:2px}
+.carte .comp{font-size:14px;color:var(--gris);margin-top:4px}
+.carte .autres{margin-top:12px;padding-top:10px;border-top:1px solid var(--bord);display:flex;flex-direction:column;gap:6px;font-size:14px}
+.carte .autres div{display:flex;justify-content:space-between;gap:10px}
+.carte .autres b{color:var(--bleu);white-space:nowrap}
+.bloc{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:18px 22px}
+.bloc h2{margin:0 0 10px;font-size:19px;color:var(--bleu)}
+.vig{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.vig li{background:var(--orange-f);color:var(--orange);border-radius:8px;padding:10px 14px;font-size:16px}
+.vide{color:var(--gris);font-size:15px}
+.erreur{background:#fde8e8;color:#8a1c1c;border-radius:8px;padding:12px 16px;font-size:15px}
+</style>
+</head>
+<body>
+<div class="entete">
+  <div class="sur">DSDEN du Nord · DPEP</div>
+  <h1>Le 1er degré public en un coup d'œil</h1>
+  <div class="sous" id="sous">Chargement…</div>
+</div>
+<main>
+  <div id="erreur" class="erreur" hidden></div>
+  <div class="grille" id="cartes"></div>
+  <div class="bloc"><h2>Points d'attention</h2><ul class="vig" id="vig"></ul></div>
+</main>
+<script>
+var T_IND = "Grist_Indicateurs_cles", T_VIG = "Grist_Vigilance";
+
+function cle(s){return String(s).toLowerCase().normalize("NFD").replace(/[^a-z]/g,"");}
+function colonne(table, debut){
+  for (var k in table){ if (cle(k).indexOf(debut) === 0) return table[k]; }
+  return [];
+}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function nb(v){
+  var n = Number(v);
+  if (v === "" || v === null || isNaN(n)) return esc(v);
+  var dec = (Math.abs(n) >= 1000 || Number.isInteger(n)) ? 0 : 1;
+  return n.toLocaleString("fr-FR",{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+function unite(u){return u === "%" ? " %" : "";}
+function etiquetteUnite(u){return (u && u !== "%") ? esc(u) : "";}
+
+async function afficher(){
+  var err = document.getElementById("erreur");
+  try{
+    var ind = await grist.docApi.fetchTable(T_IND);
+    var vig = await grist.docApi.fetchTable(T_VIG);
+    err.hidden = true;
+    var axe = colonne(ind,"axe"), lib = colonne(ind,"indic"), val = colonne(ind,"val"),
+        uni = colonne(ind,"unit"), cmp = colonne(ind,"comp");
+    var ordre = [], groupes = {};
+    for (var i=0;i<axe.length;i++){
+      var a = axe[i];
+      if (!groupes[a]){ groupes[a]=[]; ordre.push(a); }
+      groupes[a].push({lib:lib[i],val:val[i],uni:uni[i],cmp:cmp[i]});
+    }
+    var h = "";
+    ordre.forEach(function(a){
+      var g = groupes[a], p = g[0];
+      h += '<div class="carte"><div class="axe">'+esc(a)+'</div>'+
+           '<div class="grand">'+nb(p.val)+unite(p.uni)+(etiquetteUnite(p.uni)?'<small>'+etiquetteUnite(p.uni)+'</small>':'')+'</div>'+
+           '<div class="lib">'+esc(p.lib)+'</div>'+
+           (p.cmp?'<div class="comp">'+esc(p.cmp)+'</div>':'');
+      if (g.length>1){
+        h += '<div class="autres">';
+        g.slice(1).forEach(function(x){
+          h += '<div><span>'+esc(x.lib)+(x.cmp?' <span style="color:#4A5565">('+esc(x.cmp)+')</span>':'')+'</span><b>'+nb(x.val)+unite(x.uni)+(etiquetteUnite(x.uni)?' '+etiquetteUnite(x.uni):'')+'</b></div>';
+        });
+        h += '</div>';
+      }
+      h += '</div>';
+    });
+    document.getElementById("cartes").innerHTML = h || '<div class="vide">Aucun indicateur.</div>';
+
+    var ordV = colonne(vig,"ordre"), msg = colonne(vig,"message"), idx = [];
+    for (var j=0;j<msg.length;j++) idx.push(j);
+    idx.sort(function(x,y){return (ordV[x]||0)-(ordV[y]||0);});
+    document.getElementById("vig").innerHTML = idx.length ?
+      idx.map(function(j){return "<li>"+esc(msg[j])+"</li>";}).join("") :
+      '<li class="vide" style="background:none;padding:0">Aucun point d\'attention.</li>';
+    document.getElementById("sous").textContent = "Indicateurs clés · mis à jour à chaque actualisation du tableau de bord";
+  }catch(e){
+    err.hidden = false;
+    err.textContent = "Impossible de lire les données : " + e.message +
+      " (vérifie que le widget a l'accès complet au document et que les tables " + T_IND + " et " + T_VIG + " existent).";
+  }
+}
+grist.ready({requiredAccess:"full"});
+grist.onRecords(afficher);
+afficher();
+</script>
+</body>
+</html>
