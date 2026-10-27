@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Effectifs - Pilotage RH 1er degré</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+:root{--bleu:#1F3A5F;--bleu-c:#BDD7EE;--texte:#1B2430;--gris:#4A5565;--bord:#DDE3EA;--fond:#F2F5F9;--orange:#C8650B}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fond);color:var(--texte);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+.entete{background:var(--bleu);color:#fff;padding:22px 32px}
+.entete .sur{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--bleu-c)}
+.entete h1{margin:4px 0 0;font-size:28px;line-height:1.15}
+.entete .sous{margin-top:4px;font-size:15px;color:#DCE8F5}
+main{max-width:1200px;margin:0 auto;padding:22px 32px 40px;display:flex;flex-direction:column;gap:20px}
+.annees{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.annees .t{font-weight:600;color:var(--gris);margin-right:4px}
+.annees button{font:inherit;padding:7px 18px;border-radius:999px;border:1px solid var(--bleu);background:#fff;color:var(--bleu);cursor:pointer}
+.annees button.on{background:var(--bleu);color:#fff;font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.kpi{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:16px 22px}
+.kpi .l{font-size:15px;font-weight:600;color:var(--gris)}
+.kpi .v{font-size:42px;font-weight:700;color:var(--bleu);line-height:1.1;margin-top:6px}
+.kpi .v small{font-size:17px;color:var(--gris);font-weight:600;margin-left:6px}
+.kpi .c{font-size:14px;color:var(--gris);margin-top:6px}
+.bloc{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:20px 24px}
+.bloc h2{margin:0;font-size:19px;color:var(--bleu)}
+.bloc .aide{font-size:14px;color:var(--gris);margin:3px 0 12px}
+.legende{display:flex;gap:18px;font-size:14px;color:var(--gris);margin-bottom:8px;flex-wrap:wrap}
+.legende span::before{content:"";display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:3px;background:var(--c)}
+svg{width:100%;height:auto;display:block}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{font-size:14px;color:var(--gris);text-align:right;font-weight:600;padding:6px 10px;border-bottom:1px solid var(--bord)}
+td{padding:7px 10px;text-align:right;border-bottom:1px solid #EEF2F6}
+th:first-child,td:first-child{text-align:left}
+.pos,.neg{color:var(--bleu);font-weight:600}
+.erreur{background:#fde8e8;color:#8a1c1c;border-radius:8px;padding:12px 16px;font-size:15px}
+</style>
+</head>
+<body>
+<div class="entete">
+  <div class="sur">DSDEN du Nord · DPEP</div>
+  <h1>Effectifs</h1>
+  <div class="sous">Stock d'agents en ETPA : réalisé et prévisionnel</div>
+</div>
+<main>
+  <div id="erreur" class="erreur" hidden></div>
+  <div class="annees" id="annees"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="bloc">
+    <h2 id="titre">Évolution mensuelle</h2>
+    <div class="aide">L'échelle ne part pas de zéro, pour que les écarts restent lisibles.</div>
+    <div class="legende"><span style="--c:#1F3A5F">Stock réalisé</span><span style="--c:#7FA6D1">Stock prévisionnel</span></div>
+    <div id="graph"></div>
+  </div>
+  <div class="bloc">
+    <h2>Détail par mois</h2>
+    <div class="aide">Écart = réalisé − prévisionnel.</div>
+    <div id="tab"></div>
+  </div>
+</main>
+<script>
+var MOIS=["Janv.","Févr.","Mars","Avr.","Mai","Juin","Juil.","Août","Sept.","Oct.","Nov.","Déc."];
+var D=[], annee=null;
+function cle(s){return String(s).toLowerCase().normalize("NFD").replace(/[^a-z]/g,"");}
+function col(t,noms){
+  var ks=Object.keys(t);
+  for(var n=0;n<noms.length;n++)for(var i=0;i<ks.length;i++)if(cle(ks[i])===noms[n])return t[ks[i]];
+  for(var n=0;n<noms.length;n++)for(var i=0;i<ks.length;i++)if(cle(ks[i]).indexOf(noms[n])===0)return t[ks[i]];
+  return [];
+}
+function trouver(ids,mot){for(var i=0;i<ids.length;i++)if(cle(ids[i]).indexOf(mot)>=0)return ids[i];return null;}
+function f1(v){return Number(v).toLocaleString("fr-FR",{minimumFractionDigits:1,maximumFractionDigits:1});}
+function sg(v){return (v>0?"+":v<0?"−":"")+f1(Math.abs(v));}
+async function charger(){
+  var ids=await grist.docApi.listTables(), tn=trouver(ids,"effectifs");
+  if(!tn) throw new Error("table introuvable parmi : "+ids.join(", "));
+  var t=await grist.docApi.fetchTable(tn);
+  var a=col(t,["annee"]), n=col(t,["moisn"]), r=col(t,["stockrealise","stockr"]), p=col(t,["stockprevisionnel","stockp"]);
+  D=[];
+  for(var i=0;i<a.length;i++) if(r[i]!==null&&r[i]!==""&&r[i]!==undefined) D.push({a:+a[i],n:+n[i],r:+r[i],p:+p[i]});
+  D.sort(function(x,y){return x.a-y.a||x.n-y.n;});
+}
+function dessiner(){
+  var s={};D.forEach(function(r){s[r.a]=1;});
+  var ans=Object.keys(s).map(Number).sort();
+  if(annee===null||ans.indexOf(annee)<0) annee=ans[ans.length-1];
+  document.getElementById("annees").innerHTML=ans.length>1?'<span class="t">Année</span>'+ans.map(function(a){return '<button data-a="'+a+'"'+(a===annee?' class="on"':'')+'>'+a+'</button>';}).join(""):"";
+  document.querySelectorAll("#annees button").forEach(function(b){b.onclick=function(){annee=+b.getAttribute("data-a");dessiner();};});
+  var R=D.filter(function(r){return r.a===annee;});
+  if(!R.length){document.getElementById("kpis").innerHTML="";document.getElementById("graph").innerHTML="Aucune donnée.";return;}
+  var der=R[R.length-1], pre=R.length>1?R[R.length-2]:null, prem=R[0];
+  var ec=der.r-der.p;
+  document.getElementById("kpis").innerHTML=
+    '<div class="kpi"><div class="l">Stock réalisé, '+MOIS[der.n-1].replace(".","")+' '+annee+'</div><div class="v">'+f1(der.r).replace(/,0$/,"")+'<small>ETPA</small></div><div class="c">'+(pre?sg(der.r-pre.r)+' par rapport au mois précédent':'')+'</div></div>'+
+    '<div class="kpi"><div class="l">Prévisionnel du mois</div><div class="v">'+f1(der.p)+'<small>ETPA</small></div><div class="c">Écart : <b>'+sg(ec)+'</b> ETPA</div></div>'+
+    '<div class="kpi"><div class="l">Depuis janvier</div><div class="v">'+sg(der.r-prem.r)+'<small>ETPA</small></div><div class="c">'+f1(prem.r)+' en '+MOIS[prem.n-1].replace(".","")+'</div></div>';
+  document.getElementById("titre").textContent="Évolution mensuelle, "+annee;
+  var vals=R.map(function(r){return r.r;}).concat(R.map(function(r){return r.p;}));
+  var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), marge=Math.max((mx-mn)*0.25,5);
+  var pas=[1,2,5,10,20,50,100].filter(function(x){return (mx-mn+2*marge)/x<=6;})[0]||100;
+  var lo=Math.floor((mn-marge)/pas)*pas, hi=Math.ceil((mx+marge)/pas)*pas;
+  var W=1100,H=320,gx=70,gy=26,gt=14, iw=W-gx-20, ih=H-gy-gt;
+  function X(k){return gx+iw*(k+0.5)/12;}
+  function Y(v){return gt+ih*(1-(v-lo)/(hi-lo));}
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Évolution du stock en ETPA">';
+  for(var v=lo;v<=hi+1e-9;v+=pas){svg+='<line x1="'+gx+'" x2="'+(W-20)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#DDE3EA"/><text x="'+(gx-8)+'" y="'+(Y(v)+4)+'" text-anchor="end" font-size="13" fill="#4A5565">'+v.toLocaleString("fr-FR")+'</text>';}
+  for(var k=0;k<12;k++) svg+='<text x="'+X(k)+'" y="'+(H-4)+'" text-anchor="middle" font-size="13" fill="#4A5565">'+MOIS[k]+'</text>';
+  function ligne(cle,coul,larg){
+    var d=R.map(function(r,i){return (i?"L":"M")+X(r.n-1)+" "+Y(r[cle]);}).join(" ");
+    var o='<path d="'+d+'" fill="none" stroke="'+coul+'" stroke-width="'+larg+'" stroke-linejoin="round" stroke-linecap="round"/>';
+    R.forEach(function(r){o+='<circle cx="'+X(r.n-1)+'" cy="'+Y(r[cle])+'" r="4.5" fill="'+coul+'"/>';});
+    return o;
+  }
+  svg+=ligne("p","#7FA6D1",3)+ligne("r","#1F3A5F",3.5)+'</svg>';
+  document.getElementById("graph").innerHTML=svg;
+  var h='<table><tr><th>Mois</th><th>Réalisé</th><th>Prévisionnel</th><th>Écart</th></tr>';
+  R.forEach(function(r){var e=r.r-r.p;h+='<tr><td>'+MOIS[r.n-1].replace(".","")+'</td><td><b>'+f1(r.r)+'</b></td><td>'+f1(r.p)+'</td><td class="'+(e>=0?'pos':'neg')+'">'+sg(e)+'</td></tr>';});
+  document.getElementById("tab").innerHTML=h+'</table>';
+}
+async function demarrer(){
+  var err=document.getElementById("erreur");
+  try{await charger();err.hidden=true;dessiner();}
+  catch(e){err.hidden=false;err.textContent="Impossible de lire les données : "+e.message;}
+}
+grist.ready({requiredAccess:"full"});
+grist.onRecords(demarrer);
+demarrer();
+</script>
+</body>
+</html>
