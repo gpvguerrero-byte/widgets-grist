@@ -155,8 +155,10 @@ function dessineFile(){
     ? n + (n > 1 ? " demandes validées" : " demande validée")
     : "aucune demande en attente";
   if (!lignes.length){
-    f.innerHTML = '<div class="vide">Aucune demande validée pour le moment.<br><br>'
-      + 'Les demandes apparaissent ici dès que la cheffe de division les a validées.</div>';
+    f.innerHTML = recuDesDonnees
+      ? '<div class="vide">Aucune demande validée pour le moment.<br><br>'
+        + 'Les demandes apparaissent ici dès que la cheffe de division les a validées.</div>'
+      : '<div class="vide">Chargement…</div>';
     $("detail").innerHTML = "";
     return;
   }
@@ -324,13 +326,37 @@ async function chargeBureaux(){
 }
 
 // ---------------------------------------------------------------- démarrage
+let recuDesDonnees = false;
+let dernieres = [];
+
 grist.ready({ requiredAccess: "full" });
+
+// On s'abonne tout de suite : l'affichage ne dépend pas du chargement
+// des référentiels, qui ne sert qu'à remplacer les identifiants par les libellés.
+// includeColumns: "all" est indispensable : sans lui, Grist ne transmet que
+// les colonnes cochées comme visibles dans le panneau de droite.
+grist.onRecords(recs => {
+  recuDesDonnees = true;
+  dernieres = recs || [];
+  majLignes(dernieres);
+}, { includeColumns: "all", keepEncoded: true });
 
 (async () => {
   await chargeReferentiels();
   await chargeBureaux();
-  grist.onRecords(recs => { majLignes(recs); });
+  if (recuDesDonnees) majLignes(dernieres);
 })();
+
+// Si rien n'arrive, on le dit plutôt que de laisser un écran vide.
+setTimeout(() => {
+  if (!recuDesDonnees){
+    alerte("Aucune donnée reçue de Grist. Vérifiez, dans le panneau de droite : "
+      + "la source de données (table « Récapitulatif de la demande ») et le niveau "
+      + "d'accès, qui doit être « Accès complet au document ».");
+  }
+}, 6000);
+
+dessine();
 </script>
 
 </body>
