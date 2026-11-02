@@ -48,6 +48,8 @@ tbody tr.on{background:var(--bleu-clair)}
 
 .pill{display:inline-block;font-size:12px;border-radius:999px;padding:3px 11px;white-space:nowrap}
 .pill.vert{background:var(--vert-f);color:var(--vert-txt)}
+.pill.vert-contour{background:#fff;border:1px solid var(--vert-txt);color:var(--vert-txt);padding:2px 10px}
+.pill.vert-plein{background:var(--vert-txt);color:#fff}
 .pill.bleu{background:var(--bleu-clair);color:var(--bleu-txt)}
 .pill.violet{background:var(--violet-f);color:var(--violet-txt)}
 .pill.ambre{background:var(--ambre-f);color:var(--ambre-txt)}
@@ -110,7 +112,7 @@ tbody tr.on{background:var(--bleu-clair)}
 <div class="entete">
   <span class="t">Suivi des demandes</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v4</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v5</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -187,9 +189,9 @@ function mailtoDe(v){
 function enAttente(st){ return st === "A valider" || st === "À valider"; }
 
 function couleurStatut(st){
-  if (st === "Validée") return "vert";
-  if (enAttente(st)) return "ambre";
-  if (st === "Envoyée" || st === "Publiée") return "bleu";
+  if (st === "Validée") return "vert-contour";
+  if (st === "A valider" || st === "À valider") return "ambre";
+  if (st === "Envoyée" || st === "Publiée") return "vert-plein";
   return "gris";
 }
 
