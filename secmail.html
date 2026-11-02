@@ -26,6 +26,8 @@ button{font-family:inherit}
 
 .alerte{margin:12px 18px;padding:10px 14px;border-radius:8px;background:var(--rouge-f);color:var(--rouge-txt);font-size:13px;line-height:1.5}
 .alerte:empty{display:none}
+.confirme{margin:12px 18px;padding:10px 14px;border-radius:8px;background:var(--vert-f);color:var(--vert-txt);font-size:13px}
+.confirme:empty{display:none}
 
 .corps{display:flex;align-items:stretch;min-height:240px}
 .file{width:250px;flex:none;border-right:1px solid var(--bord);background:var(--fond);overflow-y:auto}
@@ -100,6 +102,7 @@ button{font-family:inherit}
 </div>
 
 <div class="alerte" id="alerte"></div>
+<div class="confirme" id="confirme"></div>
 
 <div class="corps">
   <div class="file" id="file"></div>
@@ -122,6 +125,13 @@ const esc = s => String(s == null ? "" : s)
   .replace(/"/g,"&quot;");
 
 function alerte(msg){ $("alerte").innerHTML = msg ? esc(msg) : ""; }
+
+let minuteurConfirme = null;
+function confirme(msg){
+  $("confirme").innerHTML = msg ? esc(msg) : "";
+  if (minuteurConfirme) clearTimeout(minuteurConfirme);
+  if (msg) minuteurConfirme = setTimeout(() => { $("confirme").innerHTML = ""; }, 8000);
+}
 
 function jour(v){
   if (v == null || v === "") return "";
@@ -277,11 +287,19 @@ function dessine(){ dessineFile(); dessineDetail(); }
 async function marquerEnvoyee(id, bouton){
   bouton.disabled = true;
   bouton.textContent = "Enregistrement…";
+  const r = lignes.find(x => x.id === id);
+  const num = r ? (r.Numero || "") : "";
   try {
+    // On écrit aussi la date : la formule de Date_envoi ne se déclenche
+    // qu'à la création de la ligne, pas lors d'un changement de statut.
+    const n = new Date();
+    const jourUTC = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) / 1000;
     await grist.docApi.applyUserActions([
-      ["UpdateRecord", TABLE, id, { Statut: "Envoyée" }]
+      ["UpdateRecord", TABLE, id, { Statut: "Envoyée", Date_envoi: jourUTC }]
     ]);
     alerte("");
+    confirme("✓ " + (num ? num + " — envoi enregistré" : "Envoi enregistré")
+      + ". La demande a quitté la file.");
   } catch (e) {
     bouton.disabled = false;
     bouton.textContent = "Marquer comme envoyée";
@@ -317,9 +335,9 @@ async function chargeReferentiels(){
 }
 
 function majLignes(recs){
-  // la file ne contient que les demandes validées ; celle qu'on vient
-  // d'envoyer reste affichée tant qu'elle est sélectionnée, pour confirmation
-  const gardees = (recs || []).filter(r => r.Statut === "Validée" || r.id === choisie);
+  // la file ne contient que les demandes validées : une demande envoyée
+  // en sort aussitôt, un bandeau vert confirmant l'enregistrement
+  const gardees = (recs || []).filter(r => r.Statut === "Validée");
   lignes = gardees.map(r => {
     return Object.assign({}, r, {
       Bureau_txt: noms(r.Bureau, "Bureaux").join(", ")
