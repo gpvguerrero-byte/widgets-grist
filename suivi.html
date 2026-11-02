@@ -79,6 +79,10 @@ tbody tr.on{background:var(--bleu-clair)}
 .edit input,.edit textarea{width:100%;border:1px solid var(--bord);border-radius:6px;padding:8px 10px;font-size:13px;background:#fff;color:var(--texte)}
 .edit textarea{min-height:120px;resize:vertical;line-height:1.6}
 .edit .bas{margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cases{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 10px;border:1px solid var(--bord);border-radius:6px;background:var(--fond)}
+.cases label{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;color:var(--texte);cursor:pointer}
+.cases input{width:auto}
+.cases .rien{font-size:13px;color:var(--gris-clair)}
 .btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;background:#fff;color:var(--texte);border:1px solid #B9C2CE}
 .btn:hover{background:var(--fond)}
 .btn.prim{background:var(--bleu);color:#fff;border-color:var(--bleu)}
@@ -98,6 +102,7 @@ tbody tr.on{background:var(--bleu-clair)}
 <div class="entete">
   <span class="t">Suivi des demandes</span>
   <span class="n" id="compte"></span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v3</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -128,6 +133,8 @@ let jeton = null;
 let recuDesDonnees = false;
 let dernieres = [];
 let brouillons = {};   // saisies en cours, par identifiant de demande
+let options = {};      // {Liste_TO: [{id, lib}], ...} pour les cases à cocher
+let inverse = {};      // {Liste_TO: {libellé: id}} pour retrouver un identifiant
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s)
@@ -313,9 +320,10 @@ function dessineDetail(){
           + '</div>'
         : '')
 
-    + '<div class="ligne"><div class="lab">À</div><div class="val">' + pills(to,"bleu") + '</div></div>'
-    + '<div class="ligne"><div class="lab">Copie</div><div class="val">' + pills(cc,"violet") + '</div></div>'
-    + '<div class="ligne"><div class="lab">Copie cachée</div><div class="val">' + pills(cci,"violet") + '</div></div>'
+    + (modifiable ? '' :
+        '<div class="ligne"><div class="lab">À</div><div class="val">' + pills(to,"bleu") + '</div></div>'
+      + '<div class="ligne"><div class="lab">Copie</div><div class="val">' + pills(cc,"violet") + '</div></div>'
+      + '<div class="ligne"><div class="lab">Copie cachée</div><div class="val">' + pills(cci,"violet") + '</div></div>')
 
     + (modifiable
         ? ''
@@ -331,6 +339,12 @@ function dessineDetail(){
           + '<input id="eobj" type="text" value="' + esc(bo.Objet) + '">'
           + '<label for="emsg">Message</label>'
           + '<textarea id="emsg">' + esc(bo.Message) + '</textarea>'
+          + '<label>Destinataires</label>'
+          + groupeCases("TO", "Liste_TO", bo.TO)
+          + '<label>Copie</label>'
+          + groupeCases("COPIE", "Liste_COPIE", bo.COPIE)
+          + '<label>Copie cachée</label>'
+          + groupeCases("CCI", "Liste_CCI", bo.CCI)
           + '<div class="bas">'
             + (urlRenvoi
                 ? '<button class="btn prim" id="bmaj1">Enregistrer et signaler la correction</button>'
@@ -344,6 +358,18 @@ function dessineDetail(){
   if (modifiable){
     $("eobj").oninput = e => { brouillon(r.id).Objet = e.target.value; };
     $("emsg").oninput = e => { brouillon(r.id).Message = e.target.value; };
+    document.querySelectorAll(".cases[data-groupe]").forEach(g => {
+      const cle = g.dataset.groupe;
+      g.querySelectorAll("input[type=checkbox]").forEach(c => {
+        c.onchange = () => {
+          const b = brouillon(r.id);
+          const n = Number(c.dataset.id);
+          const k = b[cle].indexOf(n);
+          if (c.checked && k === -1) b[cle].push(n);
+          if (!c.checked && k !== -1) b[cle].splice(k, 1);
+        };
+      });
+    });
     const b1 = $("bmaj1");
     const b2 = $("bmaj2");
     if (b1) b1.onclick = () => enregistrer(r.id, b1, true);
@@ -359,14 +385,37 @@ function dessineDetail(){
 
 // Les données sont renvoyées par Grist à chaque modification du document, ce qui
 // redessine l'écran : on conserve donc la saisie en cours à part.
+// Les valeurs arrivent sous forme de libellés : on remonte aux identifiants,
+// seuls acceptés en écriture par Grist pour une colonne de référence.
+function versIds(v, table){
+  const inv = inverse[table] || {};
+  return ids(v)
+    .map(x => (typeof x === "number") ? x : inv[x])
+    .filter(x => typeof x === "number");
+}
+
 function brouillon(id, r){
   if (!brouillons[id]){
     brouillons[id] = {
       Objet: (r && r.Objet) || "",
-      Message: (r && r.Message) || ""
+      Message: (r && r.Message) || "",
+      TO:    r ? versIds(r.Destinataires, "Liste_TO")   : [],
+      COPIE: r ? versIds(r.Copie, "Liste_COPIE")        : [],
+      CCI:   r ? versIds(r.Copie_cachee, "Liste_CCI")   : []
     };
   }
   return brouillons[id];
+}
+
+function groupeCases(cle, table, selection){
+  const opt = options[table] || [];
+  if (!opt.length) return '<div class="cases"><span class="rien">liste indisponible</span></div>';
+  return '<div class="cases" data-groupe="' + cle + '">'
+    + opt.map(o =>
+        '<label><input type="checkbox" data-id="' + o.id + '"'
+        + (selection.indexOf(o.id) !== -1 ? ' checked' : '') + '> '
+        + esc(o.lib) + '</label>').join("")
+    + '</div>';
 }
 
 async function enregistrer(id, bouton, signaler){
@@ -377,7 +426,13 @@ async function enregistrer(id, bouton, signaler){
   bouton.textContent = "Enregistrement…";
   try {
     await grist.docApi.applyUserActions([
-      ["UpdateRecord", TABLE, id, { Objet: bo.Objet, Message: bo.Message }]
+      ["UpdateRecord", TABLE, id, {
+        Objet: bo.Objet,
+        Message: bo.Message,
+        Destinataires: ["L"].concat(bo.TO),
+        Copie: ["L"].concat(bo.COPIE),
+        Copie_cachee: ["L"].concat(bo.CCI)
+      }]
     ]);
     alerte("");
     delete brouillons[id];
@@ -414,10 +469,20 @@ async function chargeReferentiels(){
   for (const t of ["Liste_TO","Liste_COPIE","Liste_CCI"]){
     try {
       const d = await grist.docApi.fetchTable(t);
-      const m = {};
-      (d.id || []).forEach((rid, k) => { m[rid] = (d.Libelle || [])[k]; });
+      const m = {}, inv = {}, opt = [];
+      (d.id || []).forEach((rid, k) => {
+        const lib = (d.Libelle || [])[k];
+        const actif = (d.Actif === undefined) ? true : (d.Actif[k] !== false);
+        m[rid] = lib;
+        if (lib){
+          inv[lib] = rid;
+          if (actif) opt.push({ id: rid, lib: lib });
+        }
+      });
       libelles[t] = m;
-    } catch (e) { libelles[t] = {}; }
+      inverse[t] = inv;
+      options[t] = opt;
+    } catch (e) { libelles[t] = {}; inverse[t] = {}; options[t] = []; }
   }
   try {
     const d = await grist.docApi.fetchTable("Bureaux");
