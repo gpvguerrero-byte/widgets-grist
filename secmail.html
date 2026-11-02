@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SEC MAIL — À envoyer</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+:root{
+  --bleu:#1F3A5F; --bleu-clair:#E8EEF5; --bleu-txt:#17406B;
+  --violet-f:#EFEDFB; --violet-txt:#4A3FA8;
+  --vert-f:#E4F3E6; --vert-txt:#1E6B2C;
+  --ambre-f:#FFF4DC; --ambre-txt:#7A4D00; --ambre-bord:#E8C77A;
+  --rouge-f:#FDECEC; --rouge-txt:#9B2222;
+  --texte:#1B2430; --gris:#5A6472; --gris-clair:#8A94A2;
+  --bord:#DDE3EA; --fond:#F4F6F9;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:#fff;color:var(--texte);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;font-size:14px}
+button{font-family:inherit}
+
+.entete{display:flex;align-items:center;gap:10px;padding:13px 18px;background:var(--bleu);color:#fff}
+.entete .t{font-size:16px;font-weight:600}
+.entete .n{margin-left:auto;font-size:13px;color:#C9DCF0}
+
+.alerte{margin:12px 18px;padding:10px 14px;border-radius:8px;background:var(--rouge-f);color:var(--rouge-txt);font-size:13px;line-height:1.5}
+.alerte:empty{display:none}
+
+.corps{display:flex;align-items:stretch;min-height:320px}
+.file{width:250px;flex:none;border-right:1px solid var(--bord);background:var(--fond);overflow-y:auto}
+.file .item{padding:11px 14px;border-left:3px solid transparent;border-bottom:1px solid var(--bord);cursor:pointer}
+.file .item:hover{background:#EDF1F6}
+.file .item.on{background:var(--bleu-clair);border-left-color:var(--bleu)}
+.file .item .num{font-size:12px;color:var(--gris-clair)}
+.file .item.on .num{color:var(--bleu-txt)}
+.file .item .obj{font-size:13px;color:var(--gris);margin-top:2px;line-height:1.35}
+.file .item.on .obj{color:var(--bleu-txt)}
+.file .vide{padding:18px 14px;font-size:13px;color:var(--gris-clair);line-height:1.5}
+
+.detail{flex:1;min-width:0;padding:16px 20px 22px}
+.titre{display:flex;align-items:flex-start;gap:12px}
+.titre h1{margin:0;font-size:17px;font-weight:600;line-height:1.3;flex:1;min-width:0}
+.meta{font-size:12px;color:var(--gris-clair);margin:4px 0 14px}
+
+.pill{display:inline-block;font-size:12px;border-radius:999px;padding:3px 11px;white-space:nowrap}
+.pill.vert{background:var(--vert-f);color:var(--vert-txt)}
+.pill.bleu{background:var(--bleu-clair);color:var(--bleu-txt)}
+.pill.violet{background:var(--violet-f);color:var(--violet-txt)}
+
+.ligne{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--bord)}
+.ligne .lab{width:96px;flex:none;color:var(--gris);font-size:13px;padding-top:2px}
+.ligne .val{flex:1;min-width:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ligne .val .plus{font-size:12px;color:var(--gris-clair)}
+.ligne .val .rien{font-size:13px;color:var(--gris-clair)}
+
+.message{margin-top:14px;border:1px solid var(--bord);border-left:3px solid var(--bleu);background:var(--fond);padding:12px 15px}
+.message .cap{font-size:12px;color:var(--gris-clair);margin-bottom:6px}
+.message .txt{font-size:13px;line-height:1.75;white-space:pre-wrap;word-wrap:break-word}
+
+.pj{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.pj .lab{font-size:13px;color:var(--gris);margin-right:2px}
+.pj a{font-size:12px;background:var(--bleu-clair);color:var(--bleu-txt);border-radius:6px;padding:5px 11px;text-decoration:none}
+.pj a:hover{background:#D9E5F2}
+.pj .rien{font-size:13px;color:var(--gris-clair)}
+
+.actions{margin-top:18px;padding-top:15px;border-top:1px solid var(--bord);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.btn{border:none;border-radius:8px;padding:9px 18px;font-size:14px;cursor:pointer}
+.btn.prim{background:var(--bleu);color:#fff}
+.btn.prim:hover{background:#17304F}
+.btn.sec{background:#fff;color:var(--texte);border:1px solid #B9C2CE}
+.btn.sec:hover{background:var(--fond)}
+.btn[disabled]{opacity:.5;cursor:default}
+.aide{font-size:12px;color:var(--gris-clair)}
+
+.rappel{margin-top:16px;background:var(--ambre-f);border:1px solid var(--ambre-bord);border-radius:8px;padding:12px 15px;color:var(--ambre-txt)}
+.rappel .t{font-size:13px;font-weight:600;margin-bottom:7px}
+.rappel ul{margin:0;padding-left:18px}
+.rappel li{font-size:13px;line-height:1.6}
+.rappel .note{font-size:12px;opacity:.8;margin-top:7px}
+
+.fin{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.ok{font-size:13px;color:var(--vert-txt)}
+
+@media (max-width:760px){
+  .corps{display:block}
+  .file{width:auto;border-right:none;border-bottom:1px solid var(--bord);max-height:190px}
+  .ligne{display:block}
+  .ligne .lab{width:auto;margin-bottom:5px}
+}
+</style>
+</head>
+<body>
+
+<div class="entete">
+  <span class="t">À envoyer</span>
+  <span class="n" id="compte"></span>
+</div>
+
+<div class="alerte" id="alerte"></div>
+
+<div class="corps">
+  <div class="file" id="file"></div>
+  <div class="detail" id="detail"></div>
+</div>
+
+<script>
+const TABLE = "Recapitulatif_de_la_demande";
+
+let lignes = [];      // demandes validées
+let choisie = null;   // id de la demande affichée
+let libelles = {};    // {Liste_TO: {id: libelle}, ...}
+let fichiers = {};    // {id: nom de fichier}
+let jeton = null;     // access token pour les pièces jointes
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+  .replace(/"/g,"&quot;");
+
+function alerte(msg){ $("alerte").innerHTML = msg ? esc(msg) : ""; }
+
+function jour(v){
+  if (v == null || v === "") return "";
+  const d = (typeof v === "number") ? new Date(v*1000) : new Date(v);
+  if (isNaN(d)) return "";
+  const p = n => String(n).padStart(2,"0");
+  return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+d.getUTCFullYear();
+}
+
+// Une colonne Reference List vaut ['L', 3, 7]. On en tire la liste d'ids.
+function ids(v){
+  if (Array.isArray(v) && v[0] === "L") return v.slice(1);
+  if (Array.isArray(v)) return v.filter(x => typeof x === "number");
+  if (typeof v === "number" && v) return [v];
+  return [];
+}
+
+function noms(v, table){
+  const t = libelles[table] || {};
+  return ids(v).map(i => t[i]).filter(Boolean);
+}
+
+function mailtoDe(v){
+  if (!v) return "";
+  const i = String(v).indexOf("mailto:");
+  return i === -1 ? "" : String(v).slice(i);
+}
+
+// ---------------------------------------------------------------- file
+function dessineFile(){
+  const f = $("file");
+  const n = lignes.filter(r => r.Statut === "Validée").length;
+  $("compte").textContent = n
+    ? n + (n > 1 ? " demandes validées" : " demande validée")
+    : "aucune demande en attente";
+  if (!lignes.length){
+    f.innerHTML = '<div class="vide">Aucune demande validée pour le moment.<br><br>'
+      + 'Les demandes apparaissent ici dès que la cheffe de division les a validées.</div>';
+    $("detail").innerHTML = "";
+    return;
+  }
+  f.innerHTML = lignes.map(r =>
+    '<div class="item' + (r.id === choisie ? ' on' : '') + '" data-id="' + r.id + '">'
+    + '<div class="num">' + esc(r.Numero || "") + (r.Bureau_txt ? " · " + esc(r.Bureau_txt) : "") + '</div>'
+    + '<div class="obj">' + esc(r.Objet || "(sans objet)") + '</div>'
+    + '</div>'
+  ).join("");
+  f.querySelectorAll(".item").forEach(el => {
+    el.onclick = () => { choisie = Number(el.dataset.id); dessine(); };
+  });
+}
+
+// ---------------------------------------------------------------- détail
+function dessineDetail(){
+  const d = $("detail");
+  const r = lignes.find(x => x.id === choisie);
+  if (!r){ d.innerHTML = ""; return; }
+
+  const to  = noms(r.Destinataires, "Liste_TO");
+  const cc  = noms(r.Copie, "Liste_COPIE");
+  const cci = noms(r.Copie_cachee, "Liste_CCI");
+
+  const pills = (arr, cls) => arr.length
+    ? arr.map(n => '<span class="pill ' + cls + '">' + esc(n) + '</span>').join("")
+    : '<span class="rien">—</span>';
+
+  const pj = ids(r.Pieces_jointes);
+  const liensPJ = pj.length
+    ? pj.map(i => {
+        const nom = fichiers[i] || ("pièce jointe " + i);
+        const url = jeton
+          ? jeton.baseUrl + "/attachments/" + i + "/download?auth=" + encodeURIComponent(jeton.token)
+          : null;
+        return url
+          ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">⬇ ' + esc(nom) + '</a>'
+          : '<span class="rien">' + esc(nom) + '</span>';
+      }).join("")
+    : '<span class="rien">aucune</span>';
+
+  const taches = [];
+  if (r.Mise_en_ligne_sur_le_site_de_la_DSDEN) taches.push("Mettre en ligne sur le site de la DSDEN");
+  if (r.Diffusion_IPROF) taches.push("Diffuser sur IPROF");
+  if (r.Diffusion_aux_organisations_syndicales) taches.push("Diffuser aux organisations syndicales");
+
+  const meta = [];
+  if (r.Numero) meta.push(r.Numero);
+  if (r.Bureau_txt) meta.push(r.Bureau_txt);
+  if (r.Valide_par && jour(r.Date_validation)) meta.push("validée par " + r.Valide_par + " le " + jour(r.Date_validation));
+  else if (jour(r.Date_validation)) meta.push("validée le " + jour(r.Date_validation));
+
+  const envoyee = r.Statut === "Envoyée" || r.Statut === "Publiée";
+  const url = mailtoDe(r.Ouvrir_le_SEC_MAIL);
+
+  d.innerHTML =
+    '<div class="titre">'
+      + '<h1>' + esc(r.Objet || "(sans objet)") + '</h1>'
+      + '<span class="pill ' + (envoyee ? 'vert' : 'bleu') + '">' + esc(r.Statut || "") + '</span>'
+    + '</div>'
+    + '<div class="meta">' + esc(meta.join(" · ")) + '</div>'
+
+    + '<div class="ligne"><div class="lab">À</div><div class="val">' + pills(to,"bleu") + '</div></div>'
+    + '<div class="ligne"><div class="lab">Copie</div><div class="val">' + pills(cc,"violet")
+      + '<span class="plus">+ copies obligatoires</span></div></div>'
+    + '<div class="ligne"><div class="lab">Copie cachée</div><div class="val">' + pills(cci,"violet") + '</div></div>'
+
+    + '<div class="message"><div class="cap">Message envoyé aux destinataires</div>'
+      + '<div class="txt">' + esc(r.Mail_a_copier || r.Message || "") + '</div></div>'
+
+    + '<div class="pj"><span class="lab">Pièces jointes</span>' + liensPJ + '</div>'
+
+    + '<div class="actions">'
+      + (url
+          ? '<button class="btn prim" id="bmail">Ouvrir le mail</button>'
+          : '<button class="btn prim" disabled>Ouvrir le mail</button>')
+      + '<span class="aide">destinataires, objet et message déjà remplis</span>'
+    + '</div>'
+
+    + (taches.length
+        ? '<div class="rappel"><div class="t">Après l\'envoi, il reste à faire</div>'
+          + '<ul>' + taches.map(t => '<li>' + esc(t) + '</li>').join("") + '</ul>'
+          + (r.Lien_publication ? '' : '<div class="note">Pensez à renseigner le lien de publication dans la fiche.</div>')
+          + '</div>'
+        : '')
+
+    + '<div class="fin">'
+      + (envoyee
+          ? '<span class="ok">✓ Envoi enregistré le ' + esc(jour(r.Date_envoi) || "—") + '</span>'
+          : '<button class="btn sec" id="benv">Marquer comme envoyée</button>'
+            + '<span class="aide">le statut et la date d\'envoi sont enregistrés</span>')
+    + '</div>';
+
+  if (url) $("bmail").onclick = () => { window.open(url, "_blank"); };
+  const b = $("benv");
+  if (b) b.onclick = () => marquerEnvoyee(r.id, b);
+}
+
+function dessine(){ dessineFile(); dessineDetail(); }
+
+// ---------------------------------------------------------------- écriture
+async function marquerEnvoyee(id, bouton){
+  bouton.disabled = true;
+  bouton.textContent = "Enregistrement…";
+  try {
+    await grist.docApi.applyUserActions([
+      ["UpdateRecord", TABLE, id, { Statut: "Envoyée" }]
+    ]);
+    alerte("");
+  } catch (e) {
+    bouton.disabled = false;
+    bouton.textContent = "Marquer comme envoyée";
+    alerte("Le statut n'a pas pu être enregistré depuis cet écran ("
+      + (e && e.message ? e.message : e)
+      + "). Modifiez-le dans la fiche Grist, à côté.");
+  }
+}
+
+// ---------------------------------------------------------------- données
+async function chargeReferentiels(){
+  for (const t of ["Liste_TO","Liste_COPIE","Liste_CCI"]){
+    try {
+      const d = await grist.docApi.fetchTable(t);
+      const m = {};
+      (d.id || []).forEach((rid, k) => { m[rid] = (d.Libelle || [])[k]; });
+      libelles[t] = m;
+    } catch (e) {
+      libelles[t] = {};
+      alerte("Les libellés de la table " + t + " n'ont pas pu être lus. "
+        + "Vérifiez que le widget est réglé sur « Accès complet au document ».");
+    }
+  }
+  try {
+    const a = await grist.docApi.fetchTable("_grist_Attachments");
+    const m = {};
+    (a.id || []).forEach((rid, k) => { m[rid] = (a.fileName || [])[k]; });
+    fichiers = m;
+  } catch (e) { fichiers = {}; }
+  try {
+    jeton = await grist.docApi.getAccessToken({ readOnly: true });
+  } catch (e) { jeton = null; }
+}
+
+function majLignes(recs){
+  // la file ne contient que les demandes validées ; celle qu'on vient
+  // d'envoyer reste affichée tant qu'elle est sélectionnée, pour confirmation
+  const gardees = (recs || []).filter(r => r.Statut === "Validée" || r.id === choisie);
+  lignes = gardees.map(r => {
+    return Object.assign({}, r, {
+      Bureau_txt: ids(r.Bureau).map(i => (bureaux[i] || "")).filter(Boolean).join(", ")
+    });
+  });
+  if (!lignes.some(r => r.id === choisie)) choisie = lignes.length ? lignes[0].id : null;
+  dessine();
+}
+
+let bureaux = {};
+async function chargeBureaux(){
+  try {
+    const d = await grist.docApi.fetchTable("Bureaux");
+    const m = {};
+    (d.id || []).forEach((rid, k) => { m[rid] = (d.Code || [])[k]; });
+    bureaux = m;
+  } catch (e) { bureaux = {}; }
+}
+
+// ---------------------------------------------------------------- démarrage
+grist.ready({ requiredAccess: "full" });
+
+(async () => {
+  await chargeReferentiels();
+  await chargeBureaux();
+  grist.onRecords(recs => { majLignes(recs); });
+})();
+</script>
+
+</body>
+</html>
