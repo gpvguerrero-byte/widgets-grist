@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SEC MAIL — Suivi des demandes</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+:root{
+  --bleu:#1F3A5F; --bleu-clair:#E8EEF5; --bleu-txt:#17406B;
+  --violet-f:#EFEDFB; --violet-txt:#4A3FA8;
+  --vert-f:#E4F3E6; --vert-txt:#1E6B2C;
+  --ambre-f:#FFF4DC; --ambre-txt:#7A4D00; --ambre-bord:#E8C77A;
+  --rouge-f:#FDECEC; --rouge-txt:#9B2222; --rouge-bord:#E3A9A9;
+  --texte:#1B2430; --gris:#5A6472; --gris-clair:#8A94A2;
+  --bord:#DDE3EA; --fond:#F4F6F9;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#fff;color:var(--texte);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;font-size:14px}
+button,input{font-family:inherit}
+
+.entete{display:flex;align-items:center;gap:10px;padding:13px 18px;background:var(--bleu);color:#fff}
+.entete .t{font-size:16px;font-weight:600}
+.entete .n{margin-left:auto;font-size:13px;color:#C9DCF0}
+
+.alerte{margin:12px 18px;padding:10px 14px;border-radius:8px;background:var(--rouge-f);color:var(--rouge-txt);font-size:13px;line-height:1.5}
+.alerte:empty{display:none}
+.confirme{margin:12px 18px;padding:10px 14px;border-radius:8px;background:var(--vert-f);color:var(--vert-txt);font-size:13px}
+.confirme:empty{display:none}
+
+.barre{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--bord);background:var(--fond)}
+.barre .f{border:1px solid var(--bord);background:#fff;color:var(--gris);border-radius:999px;padding:5px 13px;font-size:13px;cursor:pointer}
+.barre .f:hover{background:var(--bleu-clair)}
+.barre .f.on{background:var(--bleu);color:#fff;border-color:var(--bleu)}
+.barre input{margin-left:auto;border:1px solid var(--bord);border-radius:6px;padding:6px 10px;font-size:13px;min-width:200px;background:#fff;color:var(--texte)}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;font-size:12px;color:var(--gris-clair);padding:9px 12px;border-bottom:1px solid var(--bord);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--bord);font-size:13px;vertical-align:top}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--fond)}
+tbody tr.on{background:var(--bleu-clair)}
+.col-num{white-space:nowrap;color:var(--gris)}
+.col-obj{min-width:180px}
+.col-av{white-space:nowrap;font-size:12px;color:var(--gris-clair);line-height:1.6}
+.vide{padding:22px 18px;font-size:13px;color:var(--gris-clair);line-height:1.6}
+
+.pill{display:inline-block;font-size:12px;border-radius:999px;padding:3px 11px;white-space:nowrap}
+.pill.vert{background:var(--vert-f);color:var(--vert-txt)}
+.pill.bleu{background:var(--bleu-clair);color:var(--bleu-txt)}
+.pill.violet{background:var(--violet-f);color:var(--violet-txt)}
+.pill.ambre{background:var(--ambre-f);color:var(--ambre-txt)}
+.pill.gris{background:#ECEFF3;color:#5A6472}
+.pill.rouge{background:var(--rouge-f);color:var(--rouge-txt)}
+
+.detail{border-top:3px solid var(--bleu);background:var(--fond);padding:16px 18px 20px}
+.detail h2{margin:0 0 3px;font-size:16px;font-weight:600}
+.detail .meta{font-size:12px;color:var(--gris-clair);margin-bottom:14px}
+.ligne{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--bord)}
+.ligne .lab{width:104px;flex:none;color:var(--gris);font-size:13px;padding-top:2px}
+.ligne .val{flex:1;min-width:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ligne .val .rien{font-size:13px;color:var(--gris-clair)}
+.message{margin-top:12px;border:1px solid var(--bord);border-left:3px solid var(--bleu);background:#fff;padding:12px 15px}
+.message .cap{font-size:12px;color:var(--gris-clair);margin-bottom:6px}
+.message .txt{font-size:13px;line-height:1.75;white-space:pre-wrap;word-wrap:break-word}
+.pj{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pj .lab{font-size:13px;color:var(--gris);margin-right:2px}
+.pj a{font-size:12px;background:var(--bleu-clair);color:var(--bleu-txt);border-radius:6px;padding:5px 11px;text-decoration:none}
+.pj .rien{font-size:13px;color:var(--gris-clair)}
+
+.corr{margin-top:14px;background:var(--rouge-f);border:1px solid var(--rouge-bord);border-radius:8px;padding:12px 15px}
+.corr .t{font-size:13px;font-weight:600;color:var(--rouge-txt);margin-bottom:6px}
+.corr .txt{font-size:13px;line-height:1.6;color:var(--rouge-txt);white-space:pre-wrap}
+.corr .bas{margin-top:11px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;background:#fff;color:var(--texte);border:1px solid #B9C2CE}
+.btn:hover{background:var(--fond)}
+.aide{font-size:12px;color:var(--gris-clair)}
+
+@media (max-width:760px){
+  .ligne{display:block}
+  .ligne .lab{width:auto;margin-bottom:5px}
+  .col-av{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="entete">
+  <span class="t">Suivi des demandes</span>
+  <span class="n" id="compte"></span>
+</div>
+
+<div class="alerte" id="alerte"></div>
+<div class="confirme" id="confirme"></div>
+
+<div class="barre" id="barre"></div>
+<div id="tableau"></div>
+<div id="detail"></div>
+
+<script>
+const TABLE = "Recapitulatif_de_la_demande";
+
+const FILTRES = [
+  { cle: "tout",      nom: "Toutes" },
+  { cle: "attente",   nom: "À valider" },
+  { cle: "corriger",  nom: "Correction demandée" },
+  { cle: "validee",   nom: "Validées" },
+  { cle: "envoyee",   nom: "Envoyées" }
+];
+
+let toutes = [];
+let filtre = "tout";
+let recherche = "";
+let choisie = null;
+let libelles = {};
+let fichiers = {};
+let jeton = null;
+let recuDesDonnees = false;
+let dernieres = [];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+  .replace(/"/g,"&quot;");
+
+function alerte(msg){ $("alerte").innerHTML = msg ? esc(msg) : ""; }
+
+let minuteurConfirme = null;
+function confirme(msg){
+  $("confirme").innerHTML = msg ? esc(msg) : "";
+  if (minuteurConfirme) clearTimeout(minuteurConfirme);
+  if (msg) minuteurConfirme = setTimeout(() => { $("confirme").innerHTML = ""; }, 8000);
+}
+
+function jour(v){
+  if (v == null || v === "") return "";
+  const d = (typeof v === "number") ? new Date(v*1000) : new Date(v);
+  if (isNaN(d)) return "";
+  const p = n => String(n).padStart(2,"0");
+  return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+d.getUTCFullYear();
+}
+
+function ids(v){
+  if (Array.isArray(v) && v[0] === "L") return v.slice(1);
+  if (Array.isArray(v)) return v;
+  if ((typeof v === "number" && v) || typeof v === "string" && v) return [v];
+  return [];
+}
+
+function noms(v, table){
+  const t = libelles[table] || {};
+  return ids(v).map(x => (typeof x === "string") ? x : t[x]).filter(x => x);
+}
+
+function mailtoDe(v){
+  if (!v) return "";
+  const i = String(v).indexOf("mailto:");
+  return i === -1 ? "" : String(v).slice(i);
+}
+
+function enAttente(st){ return st === "A valider" || st === "À valider"; }
+
+function couleurStatut(st){
+  if (st === "Validée") return "vert";
+  if (enAttente(st)) return "ambre";
+  if (st === "Envoyée" || st === "Publiée") return "bleu";
+  return "gris";
+}
+
+function aCorrection(r){
+  return enAttente(r.Statut) && (r.Demande_de_correction || "").trim() !== "";
+}
+
+// ---------------------------------------------------------------- filtres
+function correspond(r){
+  if (filtre === "attente"  && !(enAttente(r.Statut) && !aCorrection(r))) return false;
+  if (filtre === "corriger" && !aCorrection(r)) return false;
+  if (filtre === "validee"  && r.Statut !== "Validée") return false;
+  if (filtre === "envoyee"  && !(r.Statut === "Envoyée" || r.Statut === "Publiée")) return false;
+  if (recherche){
+    const t = (String(r.Objet || "") + " " + String(r.Numero || "") + " "
+      + String(r.Bureau_txt || "") + " " + String(r.Demandeur || "")).toLowerCase();
+    if (t.indexOf(recherche.toLowerCase()) === -1) return false;
+  }
+  return true;
+}
+
+function dessineBarre(){
+  $("barre").innerHTML =
+    FILTRES.map(f => {
+      const n = toutes.filter(r => {
+        const sauve = filtre; filtre = f.cle;
+        const ok = correspond(r); filtre = sauve; return ok;
+      }).length;
+      return '<button class="f' + (filtre === f.cle ? ' on' : '') + '" data-f="' + f.cle + '">'
+        + esc(f.nom) + ' (' + n + ')</button>';
+    }).join("")
+    + '<input id="rech" type="text" placeholder="Rechercher un objet, un numéro…" value="'
+      + esc(recherche) + '">';
+
+  $("barre").querySelectorAll(".f").forEach(b => {
+    b.onclick = () => { filtre = b.dataset.f; dessine(); };
+  });
+  const r = $("rech");
+  r.oninput = e => {
+    recherche = e.target.value;
+    const pos = e.target.selectionStart;
+    dessine();
+    const nr = $("rech"); nr.focus(); nr.setSelectionRange(pos, pos);
+  };
+}
+
+// ---------------------------------------------------------------- tableau
+function dessineTableau(){
+  const vues = toutes.filter(correspond);
+  $("compte").textContent = recuDesDonnees
+    ? toutes.length + (toutes.length > 1 ? " demandes" : " demande")
+    : "";
+
+  if (!recuDesDonnees){
+    $("tableau").innerHTML = '<div class="vide">Chargement…</div>';
+    return;
+  }
+  if (!vues.length){
+    $("tableau").innerHTML = '<div class="vide">Aucune demande ne correspond à ce filtre.</div>';
+    return;
+  }
+
+  $("tableau").innerHTML =
+    '<table><thead><tr>'
+    + '<th>Numéro</th><th>Bureau</th><th>Objet</th><th>État</th><th>Avancement</th>'
+    + '</tr></thead><tbody>'
+    + vues.map(r => {
+        const etapes = [];
+        if (jour(r.Date_demande))    etapes.push("déposée le " + jour(r.Date_demande));
+        if (jour(r.Date_validation)) etapes.push("validée le " + jour(r.Date_validation));
+        if (jour(r.Date_envoi))      etapes.push("envoyée le " + jour(r.Date_envoi));
+        return '<tr class="' + (r.id === choisie ? 'on' : '') + '" data-id="' + r.id + '">'
+          + '<td class="col-num">' + esc(r.Numero || "") + '</td>'
+          + '<td class="col-num">' + esc(r.Bureau_txt || "") + '</td>'
+          + '<td class="col-obj">' + esc(r.Objet || "(sans objet)") + '</td>'
+          + '<td><span class="pill ' + couleurStatut(r.Statut) + '">' + esc(r.Statut || "") + '</span>'
+            + (aCorrection(r) ? ' <span class="pill rouge">correction demandée</span>' : '')
+          + '</td>'
+          + '<td class="col-av">' + esc(etapes.join(" · ")) + '</td>'
+          + '</tr>';
+      }).join("")
+    + '</tbody></table>';
+
+  $("tableau").querySelectorAll("tbody tr").forEach(el => {
+    el.onclick = () => {
+      const id = Number(el.dataset.id);
+      choisie = (choisie === id) ? null : id;
+      dessine();
+    };
+  });
+}
+
+// ---------------------------------------------------------------- détail
+function dessineDetail(){
+  const d = $("detail");
+  const r = toutes.find(x => x.id === choisie);
+  if (!r){ d.innerHTML = ""; return; }
+
+  const to  = noms(r.Destinataires, "Liste_TO");
+  const cc  = noms(r.Copie, "Liste_COPIE");
+  const cci = noms(r.Copie_cachee, "Liste_CCI");
+  const pills = (arr, cls) => arr.length
+    ? arr.map(n => '<span class="pill ' + cls + '">' + esc(n) + '</span>').join("")
+    : '<span class="rien">—</span>';
+
+  const pj = ids(r.Pieces_jointes).filter(x => typeof x === "number");
+  const liensPJ = pj.length
+    ? pj.map(i => {
+        const nom = fichiers[i] || ("pièce jointe " + i);
+        const url = jeton ? jeton.baseUrl + "/attachments/" + i + "/download" : null;
+        return url
+          ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">⬇ ' + esc(nom) + '</a>'
+          : '<span class="rien">' + esc(nom) + '</span>';
+      }).join("")
+    : '<span class="rien">aucune</span>';
+
+  const meta = [];
+  if (r.Demandeur) meta.push("demandée par " + r.Demandeur);
+  if (jour(r.Date_demande)) meta.push("le " + jour(r.Date_demande));
+  if (r.Bureau_txt) meta.push(r.Bureau_txt);
+
+  const urlRenvoi = mailtoDe(r.Renvoi_demande);
+
+  d.innerHTML =
+    '<h2>' + esc(r.Objet || "(sans objet)") + '</h2>'
+    + '<div class="meta">' + esc([r.Numero].concat(meta).filter(Boolean).join(" · ")) + '</div>'
+
+    + (aCorrection(r)
+        ? '<div class="corr">'
+          + '<div class="t">Une correction est demandée</div>'
+          + '<div class="txt">' + esc(r.Demande_de_correction) + '</div>'
+          + '<div class="bas">'
+            + (urlRenvoi
+                ? '<button class="btn" id="brenvoi">Signaler la correction effectuée</button>'
+                  + '<span class="aide">prévient la cheffe de division par mail</span>'
+                : '<span class="aide">corrigez la demande dans la fiche, puis prévenez '
+                  + 'la cheffe de division</span>')
+          + '</div>'
+          + '</div>'
+        : '')
+
+    + '<div class="ligne"><div class="lab">À</div><div class="val">' + pills(to,"bleu") + '</div></div>'
+    + '<div class="ligne"><div class="lab">Copie</div><div class="val">' + pills(cc,"violet") + '</div></div>'
+    + '<div class="ligne"><div class="lab">Copie cachée</div><div class="val">' + pills(cci,"violet") + '</div></div>'
+
+    + '<div class="message"><div class="cap">Message</div>'
+      + '<div class="txt">' + esc(r.Mail_a_copier || r.Message || "") + '</div></div>'
+
+    + '<div class="pj"><span class="lab">Pièces jointes</span>' + liensPJ + '</div>';
+
+  const b = $("brenvoi");
+  if (b) b.onclick = () => {
+    window.open(urlRenvoi, "_blank");
+    confirme("Le mail vient de s'ouvrir. Il ne reste qu'à l'envoyer.");
+  };
+}
+
+function dessine(){ dessineBarre(); dessineTableau(); dessineDetail(); }
+
+// ---------------------------------------------------------------- données
+async function chargeReferentiels(){
+  for (const t of ["Liste_TO","Liste_COPIE","Liste_CCI"]){
+    try {
+      const d = await grist.docApi.fetchTable(t);
+      const m = {};
+      (d.id || []).forEach((rid, k) => { m[rid] = (d.Libelle || [])[k]; });
+      libelles[t] = m;
+    } catch (e) { libelles[t] = {}; }
+  }
+  try {
+    const d = await grist.docApi.fetchTable("Bureaux");
+    const m = {};
+    (d.id || []).forEach((rid, k) => { m[rid] = (d.Code || [])[k]; });
+    libelles["Bureaux"] = m;
+  } catch (e) { libelles["Bureaux"] = {}; }
+  try {
+    const a = await grist.docApi.fetchTable("_grist_Attachments");
+    const m = {};
+    (a.id || []).forEach((rid, k) => { m[rid] = (a.fileName || [])[k]; });
+    fichiers = m;
+  } catch (e) { fichiers = {}; }
+  try {
+    jeton = await grist.docApi.getAccessToken({ readOnly: true });
+  } catch (e) { jeton = null; }
+}
+
+function majLignes(recs){
+  toutes = (recs || [])
+    .map(r => Object.assign({}, r, {
+      Bureau_txt: noms(r.Bureau, "Bureaux").join(", ")
+    }))
+    .sort((a, b) => b.id - a.id);   // la plus récente en premier
+  if (choisie !== null && !toutes.some(r => r.id === choisie)) choisie = null;
+  dessine();
+}
+
+// ---------------------------------------------------------------- démarrage
+grist.onRecords(recs => {
+  recuDesDonnees = true;
+  dernieres = recs || [];
+  majLignes(dernieres);
+}, { includeColumns: "all", keepEncoded: true });
+
+grist.ready({ requiredAccess: "full" });
+
+(async () => {
+  await chargeReferentiels();
+  if (recuDesDonnees) majLignes(dernieres);
+})();
+
+setTimeout(() => {
+  if (!recuDesDonnees){
+    alerte("Aucune donnée reçue de Grist. Vérifiez, dans le panneau de droite : "
+      + "la source de données (table « Récapitulatif de la demande ») et le niveau "
+      + "d'accès, qui doit être « Accès complet au document ».");
+  }
+}, 6000);
+
+dessine();
+</script>
+
+</body>
+</html>
