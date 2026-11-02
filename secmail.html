@@ -104,6 +104,8 @@ button{font-family:inherit}
   <div class="detail" id="detail"></div>
 </div>
 
+<div id="diag" style="padding:8px 18px;border-top:1px solid var(--bord);font-size:11px;color:#8A94A2;font-family:monospace"></div>
+
 <script>
 const TABLE = "Recapitulatif_de_la_demande";
 
@@ -138,7 +140,7 @@ function ids(v){
 
 function noms(v, table){
   const t = libelles[table] || {};
-  return ids(v).map(i => t[i]).filter(Boolean);
+  return ids(v).map(i => t[i] || ("#" + i));
 }
 
 function mailtoDe(v){
@@ -191,9 +193,9 @@ function dessineDetail(){
   const liensPJ = pj.length
     ? pj.map(i => {
         const nom = fichiers[i] || ("pièce jointe " + i);
-        const url = jeton
-          ? jeton.baseUrl + "/attachments/" + i + "/download?auth=" + encodeURIComponent(jeton.token)
-          : null;
+        // Pas de jeton dans l'URL : le lien s'ouvre dans un nouvel onglet et
+        // c'est la session Grist de la personne connectée qui l'authentifie.
+        const url = jeton ? jeton.baseUrl + "/attachments/" + i + "/download" : null;
         return url
           ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">⬇ ' + esc(nom) + '</a>'
           : '<span class="rien">' + esc(nom) + '</span>';
@@ -257,7 +259,20 @@ function dessineDetail(){
   if (b) b.onclick = () => marquerEnvoyee(r.id, b);
 }
 
-function dessine(){ dessineFile(); dessineDetail(); }
+function diagnostic(){
+  const n = o => Object.keys(o || {}).length;
+  const r = lignes.find(x => x.id === choisie);
+  const brut = r ? JSON.stringify(r.Destinataires) : "—";
+  $("diag").textContent =
+    "diagnostic — Liste_TO:" + n(libelles.Liste_TO)
+    + " Liste_COPIE:" + n(libelles.Liste_COPIE)
+    + " Liste_CCI:" + n(libelles.Liste_CCI)
+    + " Bureaux:" + n(bureaux)
+    + " | Destinataires reçu: " + brut
+    + " | colonnes: " + (r ? Object.keys(r).length : 0);
+}
+
+function dessine(){ dessineFile(); dessineDetail(); diagnostic(); }
 
 // ---------------------------------------------------------------- écriture
 async function marquerEnvoyee(id, bouton){
