@@ -18,7 +18,7 @@
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:#fff;color:var(--texte);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;font-size:14px}
-button,input{font-family:inherit}
+button,input,textarea{font-family:inherit}
 
 .entete{display:flex;align-items:center;gap:10px;padding:13px 18px;background:var(--bleu);color:#fff}
 .entete .t{font-size:16px;font-weight:600}
@@ -73,8 +73,17 @@ tbody tr.on{background:var(--bleu-clair)}
 .corr .t{font-size:13px;font-weight:600;color:var(--rouge-txt);margin-bottom:6px}
 .corr .txt{font-size:13px;line-height:1.6;color:var(--rouge-txt);white-space:pre-wrap}
 .corr .bas{margin-top:11px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.edit{margin-top:14px;background:#fff;border:1px solid var(--bord);border-left:3px solid var(--bleu);padding:13px 15px}
+.edit .t{font-size:13px;font-weight:600;margin-bottom:9px}
+.edit label{display:block;font-size:12px;color:var(--gris);margin:9px 0 4px}
+.edit input,.edit textarea{width:100%;border:1px solid var(--bord);border-radius:6px;padding:8px 10px;font-size:13px;background:#fff;color:var(--texte)}
+.edit textarea{min-height:120px;resize:vertical;line-height:1.6}
+.edit .bas{margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;background:#fff;color:var(--texte);border:1px solid #B9C2CE}
 .btn:hover{background:var(--fond)}
+.btn.prim{background:var(--bleu);color:#fff;border-color:var(--bleu)}
+.btn.prim:hover{background:#17304F}
+.btn[disabled]{opacity:.5;cursor:default}
 .aide{font-size:12px;color:var(--gris-clair)}
 
 @media (max-width:760px){
@@ -118,6 +127,7 @@ let fichiers = {};
 let jeton = null;
 let recuDesDonnees = false;
 let dernieres = [];
+let brouillons = {};   // saisies en cours, par identifiant de demande
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s)
@@ -287,6 +297,8 @@ function dessineDetail(){
   if (r.Bureau_txt) meta.push(r.Bureau_txt);
 
   const urlRenvoi = mailtoDe(r.Renvoi_demande);
+  const modifiable = enAttente(r.Statut);
+  const bo = brouillon(r.id, r);
 
   d.innerHTML =
     '<h2>' + esc(r.Objet || "(sans objet)") + '</h2>'
@@ -296,13 +308,8 @@ function dessineDetail(){
         ? '<div class="corr">'
           + '<div class="t">Une correction est demandée</div>'
           + '<div class="txt">' + esc(r.Demande_de_correction) + '</div>'
-          + '<div class="bas">'
-            + (urlRenvoi
-                ? '<button class="btn" id="brenvoi">Signaler la correction effectuée</button>'
-                  + '<span class="aide">prévient la cheffe de division par mail</span>'
-                : '<span class="aide">corrigez la demande dans la fiche, puis prévenez '
-                  + 'la cheffe de division</span>')
-          + '</div>'
+          + '<div class="bas"><span class="aide">corrigez l\'objet ou le message ci-dessous, '
+          + 'puis enregistrez</span></div>'
           + '</div>'
         : '')
 
@@ -310,16 +317,94 @@ function dessineDetail(){
     + '<div class="ligne"><div class="lab">Copie</div><div class="val">' + pills(cc,"violet") + '</div></div>'
     + '<div class="ligne"><div class="lab">Copie cachée</div><div class="val">' + pills(cci,"violet") + '</div></div>'
 
-    + '<div class="message"><div class="cap">Message</div>'
-      + '<div class="txt">' + esc(r.Mail_a_copier || r.Message || "") + '</div></div>'
+    + (modifiable
+        ? ''
+        : '<div class="message"><div class="cap">Message</div>'
+          + '<div class="txt">' + esc(r.Mail_a_copier || r.Message || "") + '</div></div>')
 
-    + '<div class="pj"><span class="lab">Pièces jointes</span>' + liensPJ + '</div>';
+    + '<div class="pj"><span class="lab">Pièces jointes</span>' + liensPJ + '</div>'
+
+    + (modifiable
+        ? '<div class="edit">'
+          + '<div class="t">Modifier la demande</div>'
+          + '<label for="eobj">Objet</label>'
+          + '<input id="eobj" type="text" value="' + esc(bo.Objet) + '">'
+          + '<label for="emsg">Message</label>'
+          + '<textarea id="emsg">' + esc(bo.Message) + '</textarea>'
+          + '<div class="bas">'
+            + (urlRenvoi
+                ? '<button class="btn prim" id="bmaj1">Enregistrer et signaler la correction</button>'
+                  + '<button class="btn" id="bmaj2">Enregistrer seulement</button>'
+                : '<button class="btn prim" id="bmaj2">Enregistrer les modifications</button>')
+            + '<span class="aide">modifiable tant que la demande n\'est pas validée</span>'
+          + '</div>'
+          + '</div>'
+        : '');
+
+  if (modifiable){
+    $("eobj").oninput = e => { brouillon(r.id).Objet = e.target.value; };
+    $("emsg").oninput = e => { brouillon(r.id).Message = e.target.value; };
+    const b1 = $("bmaj1");
+    const b2 = $("bmaj2");
+    if (b1) b1.onclick = () => enregistrer(r.id, b1, true);
+    if (b2) b2.onclick = () => enregistrer(r.id, b2, false);
+  }
 
   const b = $("brenvoi");
   if (b) b.onclick = () => {
     window.open(urlRenvoi, "_blank");
     confirme("Le mail vient de s'ouvrir. Il ne reste qu'à l'envoyer.");
   };
+}
+
+// Les données sont renvoyées par Grist à chaque modification du document, ce qui
+// redessine l'écran : on conserve donc la saisie en cours à part.
+function brouillon(id, r){
+  if (!brouillons[id]){
+    brouillons[id] = {
+      Objet: (r && r.Objet) || "",
+      Message: (r && r.Message) || ""
+    };
+  }
+  return brouillons[id];
+}
+
+async function enregistrer(id, bouton, signaler){
+  const bo = brouillons[id];
+  if (!bo) return;
+  const texte = bouton.textContent;
+  bouton.disabled = true;
+  bouton.textContent = "Enregistrement…";
+  try {
+    await grist.docApi.applyUserActions([
+      ["UpdateRecord", TABLE, id, { Objet: bo.Objet, Message: bo.Message }]
+    ]);
+    alerte("");
+    delete brouillons[id];
+    if (signaler){
+      // le lien de signalement est une formule : on relit la ligne pour en
+      // récupérer la version calculée avec le texte qui vient d'être enregistré
+      const t = await grist.docApi.fetchTable(TABLE);
+      const k = (t.id || []).indexOf(id);
+      const url = mailtoDe((k !== -1 && t.Renvoi_demande) ? t.Renvoi_demande[k] : "");
+      if (url){
+        window.open(url, "_blank");
+        confirme("Modifications enregistrées. Il ne reste qu'à envoyer le mail "
+          + "qui vient de s'ouvrir.");
+      } else {
+        confirme("Modifications enregistrées.");
+        alerte("Le mail de signalement n'a pas pu être ouvert. Utilisez le lien "
+          + "« Signaler la correction » dans la fiche Grist.");
+      }
+    } else {
+      confirme("Modifications enregistrées.");
+    }
+  } catch (e) {
+    alerte("Les modifications n'ont pas pu être enregistrées ("
+      + (e && e.message ? e.message : e) + ").");
+  }
+  bouton.disabled = false;
+  bouton.textContent = texte;
 }
 
 function dessine(){ dessineBarre(); dessineTableau(); dessineDetail(); }
