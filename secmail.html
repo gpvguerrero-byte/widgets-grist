@@ -144,7 +144,9 @@ function ids(v){
 // et on ne consulte le référentiel que si jamais un identifiant arrivait.
 function noms(v, table){
   const t = libelles[table] || {};
-  return ids(v).map(x => (typeof x === "string") ? x : (t[x] || ("#" + x)));
+  return ids(v)
+    .map(x => (typeof x === "string") ? x : t[x])
+    .filter(x => x);
 }
 
 function couleurStatut(st){
@@ -320,7 +322,7 @@ function majLignes(recs){
   const gardees = (recs || []).filter(r => r.Statut === "Validée" || r.id === choisie);
   lignes = gardees.map(r => {
     return Object.assign({}, r, {
-      Bureau_txt: noms(r.Bureau, "Bureaux").filter(x => !String(x).startsWith("#")).join(", ")
+      Bureau_txt: noms(r.Bureau, "Bureaux").join(", ")
     });
   });
   if (!lignes.some(r => r.id === choisie)) choisie = lignes.length ? lignes[0].id : null;
