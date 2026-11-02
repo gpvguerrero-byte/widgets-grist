@@ -47,6 +47,8 @@ button{font-family:inherit}
 .pill.vert{background:var(--vert-f);color:var(--vert-txt)}
 .pill.bleu{background:var(--bleu-clair);color:var(--bleu-txt)}
 .pill.violet{background:var(--violet-f);color:var(--violet-txt)}
+.pill.ambre{background:var(--ambre-f);color:var(--ambre-txt)}
+.pill.gris{background:#ECEFF3;color:#5A6472}
 
 .ligne{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--bord)}
 .ligne .lab{width:96px;flex:none;color:var(--gris);font-size:13px;padding-top:2px}
@@ -99,8 +101,6 @@ button{font-family:inherit}
 
 <div class="alerte" id="alerte"></div>
 
-<div id="diag" style="padding:7px 18px;background:#FFF9E6;border-bottom:1px solid #E8C77A;font-size:11px;color:#7A4D00;font-family:monospace"></div>
-
 <div class="corps">
   <div class="file" id="file"></div>
   <div class="detail" id="detail"></div>
@@ -134,14 +134,24 @@ function jour(v){
 // Une colonne Reference List vaut ['L', 3, 7]. On en tire la liste d'ids.
 function ids(v){
   if (Array.isArray(v) && v[0] === "L") return v.slice(1);
-  if (Array.isArray(v)) return v.filter(x => typeof x === "number");
-  if (typeof v === "number" && v) return [v];
+  if (Array.isArray(v)) return v;
+  if ((typeof v === "number" && v) || typeof v === "string" && v) return [v];
   return [];
 }
 
+// Grist transmet les colonnes Reference List sous la forme ["L", "libellé", ...] :
+// la valeur affichée, pas l'identifiant. On prend donc les chaînes telles quelles,
+// et on ne consulte le référentiel que si jamais un identifiant arrivait.
 function noms(v, table){
   const t = libelles[table] || {};
-  return ids(v).map(i => t[i] || ("#" + i));
+  return ids(v).map(x => (typeof x === "string") ? x : (t[x] || ("#" + x)));
+}
+
+function couleurStatut(st){
+  if (st === "Validée") return "vert";
+  if (st === "A valider" || st === "À valider") return "ambre";
+  if (st === "Envoyée" || st === "Publiée") return "bleu";
+  return "gris";
 }
 
 function mailtoDe(v){
@@ -190,7 +200,7 @@ function dessineDetail(){
     ? arr.map(n => '<span class="pill ' + cls + '">' + esc(n) + '</span>').join("")
     : '<span class="rien">—</span>';
 
-  const pj = ids(r.Pieces_jointes);
+  const pj = ids(r.Pieces_jointes).filter(x => typeof x === "number");
   const liensPJ = pj.length
     ? pj.map(i => {
         const nom = fichiers[i] || ("pièce jointe " + i);
@@ -220,7 +230,7 @@ function dessineDetail(){
   d.innerHTML =
     '<div class="titre">'
       + '<h1>' + esc(r.Objet || "(sans objet)") + '</h1>'
-      + '<span class="pill ' + (envoyee ? 'vert' : 'bleu') + '">' + esc(r.Statut || "") + '</span>'
+      + '<span class="pill ' + couleurStatut(r.Statut) + '">' + esc(r.Statut || "") + '</span>'
     + '</div>'
     + '<div class="meta">' + esc(meta.join(" · ")) + '</div>'
 
@@ -244,7 +254,6 @@ function dessineDetail(){
     + (taches.length
         ? '<div class="rappel"><div class="t">Après l\'envoi, il reste à faire</div>'
           + '<ul>' + taches.map(t => '<li>' + esc(t) + '</li>').join("") + '</ul>'
-          + (r.Lien_publication ? '' : '<div class="note">Pensez à renseigner le lien de publication dans la fiche.</div>')
           + '</div>'
         : '')
 
@@ -260,20 +269,7 @@ function dessineDetail(){
   if (b) b.onclick = () => marquerEnvoyee(r.id, b);
 }
 
-function diagnostic(){
-  const n = o => Object.keys(o || {}).length;
-  const r = lignes.find(x => x.id === choisie);
-  const brut = r ? JSON.stringify(r.Destinataires) : "—";
-  $("diag").textContent =
-    "diagnostic — Liste_TO:" + n(libelles.Liste_TO)
-    + " Liste_COPIE:" + n(libelles.Liste_COPIE)
-    + " Liste_CCI:" + n(libelles.Liste_CCI)
-    + " Bureaux:" + n(bureaux)
-    + " | Destinataires reçu: " + brut
-    + " | colonnes: " + (r ? Object.keys(r).length : 0);
-}
-
-function dessine(){ dessineFile(); dessineDetail(); diagnostic(); }
+function dessine(){ dessineFile(); dessineDetail(); }
 
 // ---------------------------------------------------------------- écriture
 async function marquerEnvoyee(id, bouton){
@@ -324,7 +320,7 @@ function majLignes(recs){
   const gardees = (recs || []).filter(r => r.Statut === "Validée" || r.id === choisie);
   lignes = gardees.map(r => {
     return Object.assign({}, r, {
-      Bureau_txt: ids(r.Bureau).map(i => (bureaux[i] || "")).filter(Boolean).join(", ")
+      Bureau_txt: noms(r.Bureau, "Bureaux").filter(x => !String(x).startsWith("#")).join(", ")
     });
   });
   if (!lignes.some(r => r.id === choisie)) choisie = lignes.length ? lignes[0].id : null;
