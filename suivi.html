@@ -79,10 +79,18 @@ tbody tr.on{background:var(--bleu-clair)}
 .edit input,.edit textarea{width:100%;border:1px solid var(--bord);border-radius:6px;padding:8px 10px;font-size:13px;background:#fff;color:var(--texte)}
 .edit textarea{min-height:120px;resize:vertical;line-height:1.6}
 .edit .bas{margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.cases{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 10px;border:1px solid var(--bord);border-radius:6px;background:var(--fond)}
-.cases label{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;color:var(--texte);cursor:pointer}
-.cases input{width:auto}
-.cases .rien{font-size:13px;color:var(--gris-clair)}
+.ref{position:relative}
+.jetons{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;border:1px solid var(--bord);border-radius:6px;background:#fff;min-height:38px}
+.jetons:focus-within{border-color:var(--bleu)}
+.jeton{display:inline-flex;align-items:center;gap:6px;background:var(--bleu-clair);color:var(--bleu-txt);border-radius:999px;padding:3px 5px 3px 11px;font-size:12px;white-space:nowrap}
+.jeton button{border:none;background:none;color:var(--bleu-txt);cursor:pointer;font-size:14px;line-height:1;padding:0 4px;border-radius:999px}
+.jeton button:hover{background:#CFE0F0}
+.jetons .saisie{flex:1;min-width:130px;border:none;outline:none;padding:4px 2px;font-size:13px;background:none;color:var(--texte);width:auto}
+.liste{position:absolute;left:0;right:0;z-index:20;background:#fff;border:1px solid var(--bord);border-radius:6px;box-shadow:0 6px 18px rgba(27,36,48,.14);max-height:210px;overflow-y:auto;margin-top:3px}
+.liste:empty{display:none}
+.liste .o{padding:7px 11px;font-size:13px;cursor:pointer}
+.liste .o:hover,.liste .o.sur{background:var(--bleu-clair);color:var(--bleu-txt)}
+.liste .aucun{padding:7px 11px;font-size:13px;color:var(--gris-clair)}
 .btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;background:#fff;color:var(--texte);border:1px solid #B9C2CE}
 .btn:hover{background:var(--fond)}
 .btn.prim{background:var(--bleu);color:#fff;border-color:var(--bleu)}
@@ -102,7 +110,7 @@ tbody tr.on{background:var(--bleu-clair)}
 <div class="entete">
   <span class="t">Suivi des demandes</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v3</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v4</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -337,14 +345,14 @@ function dessineDetail(){
           + '<div class="t">Modifier la demande</div>'
           + '<label for="eobj">Objet</label>'
           + '<input id="eobj" type="text" value="' + esc(bo.Objet) + '">'
+          + '<label>Destinataires</label>'
+          + champRef("TO", bo.TO)
+          + '<label>Copie</label>'
+          + champRef("COPIE", bo.COPIE)
+          + '<label>Copie cachée</label>'
+          + champRef("CCI", bo.CCI)
           + '<label for="emsg">Message</label>'
           + '<textarea id="emsg">' + esc(bo.Message) + '</textarea>'
-          + '<label>Destinataires</label>'
-          + groupeCases("TO", "Liste_TO", bo.TO)
-          + '<label>Copie</label>'
-          + groupeCases("COPIE", "Liste_COPIE", bo.COPIE)
-          + '<label>Copie cachée</label>'
-          + groupeCases("CCI", "Liste_CCI", bo.CCI)
           + '<div class="bas">'
             + (urlRenvoi
                 ? '<button class="btn prim" id="bmaj1">Enregistrer et signaler la correction</button>'
@@ -358,18 +366,7 @@ function dessineDetail(){
   if (modifiable){
     $("eobj").oninput = e => { brouillon(r.id).Objet = e.target.value; };
     $("emsg").oninput = e => { brouillon(r.id).Message = e.target.value; };
-    document.querySelectorAll(".cases[data-groupe]").forEach(g => {
-      const cle = g.dataset.groupe;
-      g.querySelectorAll("input[type=checkbox]").forEach(c => {
-        c.onchange = () => {
-          const b = brouillon(r.id);
-          const n = Number(c.dataset.id);
-          const k = b[cle].indexOf(n);
-          if (c.checked && k === -1) b[cle].push(n);
-          if (!c.checked && k !== -1) b[cle].splice(k, 1);
-        };
-      });
-    });
+    ["TO","COPIE","CCI"].forEach(cle => brancheRef(r.id, cle));
     const b1 = $("bmaj1");
     const b2 = $("bmaj2");
     if (b1) b1.onclick = () => enregistrer(r.id, b1, true);
@@ -407,15 +404,115 @@ function brouillon(id, r){
   return brouillons[id];
 }
 
-function groupeCases(cle, table, selection){
-  const opt = options[table] || [];
-  if (!opt.length) return '<div class="cases"><span class="rien">liste indisponible</span></div>';
-  return '<div class="cases" data-groupe="' + cle + '">'
-    + opt.map(o =>
-        '<label><input type="checkbox" data-id="' + o.id + '"'
-        + (selection.indexOf(o.id) !== -1 ? ' checked' : '') + '> '
-        + esc(o.lib) + '</label>').join("")
+const TABLE_DE = { TO: "Liste_TO", COPIE: "Liste_COPIE", CCI: "Liste_CCI" };
+
+function champRef(cle, selection){
+  const t = TABLE_DE[cle];
+  const opt = options[t] || [];
+  const lib = id => (libelles[t] || {})[id] || ("#" + id);
+  return '<div class="ref" data-cle="' + cle + '">'
+    + '<div class="jetons">'
+      + selection.map(id =>
+          '<span class="jeton">' + esc(lib(id))
+          + '<button type="button" data-ret="' + id + '" aria-label="Retirer">×</button></span>'
+        ).join("")
+      + '<input class="saisie" type="text" placeholder="'
+        + (opt.length ? "Saisir pour ajouter…" : "liste indisponible") + '"'
+        + (opt.length ? "" : " disabled") + '>'
+    + '</div>'
+    + '<div class="liste"></div>'
     + '</div>';
+}
+
+// Redessine un seul champ de références, sans toucher au reste de l'écran :
+// un redessin complet ferait perdre le focus et la saisie en cours.
+function majChamp(idDemande, cle, focus){
+  const vieux = document.querySelector('.ref[data-cle="' + cle + '"]');
+  if (!vieux) return;
+  const bo = brouillon(idDemande);
+  const tmp = document.createElement("div");
+  tmp.innerHTML = champRef(cle, bo[cle]);
+  vieux.replaceWith(tmp.firstChild);
+  brancheRef(idDemande, cle);
+  if (focus){
+    const i = document.querySelector('.ref[data-cle="' + cle + '"] .saisie');
+    if (i) i.focus();
+  }
+}
+
+function brancheRef(idDemande, cle){
+  const bloc = document.querySelector('.ref[data-cle="' + cle + '"]');
+  if (!bloc) return;
+  const t = TABLE_DE[cle];
+  const saisie = bloc.querySelector(".saisie");
+  const liste = bloc.querySelector(".liste");
+  let sur = -1;   // option survolée au clavier
+
+  bloc.querySelectorAll("button[data-ret]").forEach(b => {
+    b.onclick = () => {
+      const bo = brouillon(idDemande);
+      const k = bo[cle].indexOf(Number(b.dataset.ret));
+      if (k !== -1) bo[cle].splice(k, 1);
+      majChamp(idDemande, cle, false);
+    };
+  });
+
+  if (!saisie) return;
+
+  function candidats(){
+    const bo = brouillon(idDemande);
+    const q = (saisie.value || "").trim().toLowerCase();
+    return (options[t] || [])
+      .filter(o => bo[cle].indexOf(o.id) === -1)
+      .filter(o => !q || String(o.lib).toLowerCase().indexOf(q) !== -1)
+      .slice(0, 12);
+  }
+
+  function affiche(){
+    const c = candidats();
+    sur = -1;
+    if (!c.length){
+      liste.innerHTML = (saisie.value || "").trim()
+        ? '<div class="aucun">Aucune liste ne correspond.</div>' : "";
+    } else {
+      liste.innerHTML = c.map((o, k) =>
+        '<div class="o" data-k="' + k + '" data-id="' + o.id + '">' + esc(o.lib) + '</div>'
+      ).join("");
+      liste.querySelectorAll(".o").forEach(el => {
+        el.onmousedown = e => { e.preventDefault(); ajoute(Number(el.dataset.id)); };
+      });
+    }
+  }
+
+  function ajoute(id){
+    const bo = brouillon(idDemande);
+    if (bo[cle].indexOf(id) === -1) bo[cle].push(id);
+    saisie.value = "";
+    majChamp(idDemande, cle, true);
+  }
+
+  saisie.oninput = affiche;
+  saisie.onfocus = affiche;
+  saisie.onblur = () => { setTimeout(() => { liste.innerHTML = ""; }, 120); };
+  saisie.onkeydown = e => {
+    const items = liste.querySelectorAll(".o");
+    if (e.key === "ArrowDown" || e.key === "ArrowUp"){
+      e.preventDefault();
+      if (!items.length) return;
+      sur = (e.key === "ArrowDown") ? Math.min(sur + 1, items.length - 1) : Math.max(sur - 1, 0);
+      items.forEach((el, k) => el.classList.toggle("sur", k === sur));
+      items[sur].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter"){
+      e.preventDefault();
+      const el = items[sur === -1 ? 0 : sur];
+      if (el) ajoute(Number(el.dataset.id));
+    } else if (e.key === "Escape"){
+      liste.innerHTML = "";
+    } else if (e.key === "Backspace" && !saisie.value){
+      const bo = brouillon(idDemande);
+      if (bo[cle].length){ bo[cle].pop(); majChamp(idDemande, cle, true); }
+    }
+  };
 }
 
 async function enregistrer(id, bouton, signaler){
