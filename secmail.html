@@ -27,7 +27,7 @@ button{font-family:inherit}
 .alerte{margin:12px 18px;padding:10px 14px;border-radius:8px;background:var(--rouge-f);color:var(--rouge-txt);font-size:13px;line-height:1.5}
 .alerte:empty{display:none}
 
-.corps{display:flex;align-items:stretch;min-height:320px}
+.corps{display:flex;align-items:stretch;min-height:240px}
 .file{width:250px;flex:none;border-right:1px solid var(--bord);background:var(--fond);overflow-y:auto}
 .file .item{padding:11px 14px;border-left:3px solid transparent;border-bottom:1px solid var(--bord);cursor:pointer}
 .file .item:hover{background:#EDF1F6}
@@ -99,12 +99,13 @@ button{font-family:inherit}
 
 <div class="alerte" id="alerte"></div>
 
+<div id="diag" style="padding:7px 18px;background:#FFF9E6;border-bottom:1px solid #E8C77A;font-size:11px;color:#7A4D00;font-family:monospace"></div>
+
 <div class="corps">
   <div class="file" id="file"></div>
   <div class="detail" id="detail"></div>
 </div>
 
-<div id="diag" style="padding:8px 18px;border-top:1px solid var(--bord);font-size:11px;color:#8A94A2;font-family:monospace"></div>
 
 <script>
 const TABLE = "Recapitulatif_de_la_demande";
@@ -344,17 +345,18 @@ async function chargeBureaux(){
 let recuDesDonnees = false;
 let dernieres = [];
 
-grist.ready({ requiredAccess: "full" });
-
-// On s'abonne tout de suite : l'affichage ne dépend pas du chargement
-// des référentiels, qui ne sert qu'à remplacer les identifiants par les libellés.
-// includeColumns: "all" est indispensable : sans lui, Grist ne transmet que
-// les colonnes cochées comme visibles dans le panneau de droite.
+// L'ORDRE COMPTE : on s'abonne AVANT d'annoncer que le widget est prêt.
+// Dans l'autre sens, Grist envoie les données entre les deux et elles sont perdues
+// (le widget reste vide jusqu'à ce qu'une modification du panneau les renvoie).
+// includeColumns: "all" est indispensable aussi : sans lui, Grist ne transmet
+// que les colonnes cochées comme visibles dans le panneau de droite.
 grist.onRecords(recs => {
   recuDesDonnees = true;
   dernieres = recs || [];
   majLignes(dernieres);
 }, { includeColumns: "all", keepEncoded: true });
+
+grist.ready({ requiredAccess: "full" });
 
 (async () => {
   await chargeReferentiels();
