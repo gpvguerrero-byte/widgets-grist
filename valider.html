@@ -79,6 +79,9 @@ button,textarea{font-family:inherit}
 .aide{font-size:12px;color:var(--gris-clair)}
 
 .decision{margin-top:18px;padding-top:15px;border-top:1px solid var(--bord);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.visa{margin-top:18px;padding-top:15px;border-top:1px solid var(--bord);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.visa .vu{font-size:13px;color:var(--vert-txt);font-weight:600}
+.vise-mini{margin-top:4px;font-size:11px;color:var(--vert-txt)}
 
 .correction{margin-top:16px;background:var(--rouge-f);border:1px solid var(--rouge-bord);border-radius:8px;padding:12px 15px}
 .correction .t{font-size:13px;font-weight:600;color:var(--rouge-txt);margin-bottom:8px}
@@ -98,7 +101,7 @@ button,textarea{font-family:inherit}
 <div class="entete">
   <span class="t">À valider</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">valider v3</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">valider v4</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -201,6 +204,7 @@ function dessineFile(){
     + '<div class="num">' + esc([r.Numero, r.Bureau_txt, jour(r.Date_demande)]
         .filter(Boolean).join(" · ")) + '</div>'
     + '<div class="obj">' + esc(r.Objet || "(sans objet)") + '</div>'
+    + (r.Vise ? '<div class="vise-mini">✓ visé</div>' : '')
     + '</div>'
   ).join("");
   f.querySelectorAll(".item").forEach(el => {
@@ -268,6 +272,14 @@ function dessineDetail(){
 
     + '<div class="pj"><span class="lab">Pièces jointes</span>' + liensPJ + '</div>'
 
+    + '<div class="visa">'
+      + (r.Vise
+          ? '<span class="vu">✓ Visé par ' + esc(r.Vise_par || "une adjointe")
+            + (jour(r.Date_visa) ? ' le ' + esc(jour(r.Date_visa)) : '') + '</span>'
+          : '<button class="btn sec" id="bvisa">Viser la demande</button>'
+            + '<span class="aide">une seule adjointe vise ; le visa ne conditionne pas la validation</span>')
+    + '</div>'
+
     + '<div class="decision">'
       + '<button class="btn valide" id="bval">Valider la demande</button>'
       + '<span class="aide">elle passera au secrétariat pour envoi</span>'
@@ -283,6 +295,8 @@ function dessineDetail(){
     + '</div>';
 
   $("tcorr").oninput = e => { brouillons[r.id] = e.target.value; };
+  const bv = $("bvisa");
+  if (bv) bv.onclick = () => viser(r.id, bv);
   $("bval").onclick = () => valider(r.id, $("bval"));
   $("bcorr").onclick = () => demanderCorrection(r.id, $("bcorr"));
 }
@@ -290,6 +304,26 @@ function dessineDetail(){
 function dessine(){ dessineFile(); dessineDetail(); }
 
 // ---------------------------------------------------------------- écriture
+// Le widget ne pose que la case Vise : Grist y attache, par deux formules de
+// déclenchement, le nom de qui a visé et la date. Le visa est indépendant de
+// la validation, qui reste possible sans lui.
+async function viser(id, bouton){
+  bouton.disabled = true;
+  bouton.textContent = "Enregistrement…";
+  try {
+    await grist.docApi.applyUserActions([
+      ["UpdateRecord", TABLE, id, { Vise: true }]
+    ]);
+    alerte("");
+    confirme("✓ Visa enregistré.");
+  } catch (e) {
+    bouton.disabled = false;
+    bouton.textContent = "Viser la demande";
+    alerte("Le visa n'a pas pu être enregistré ("
+      + (e && e.message ? e.message : e) + ").");
+  }
+}
+
 async function valider(id, bouton){
   const r = lignes.find(x => x.id === id);
   const num = r ? (r.Numero || "") : "";
