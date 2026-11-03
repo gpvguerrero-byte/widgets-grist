@@ -98,7 +98,7 @@ button,textarea{font-family:inherit}
 <div class="entete">
   <span class="t">À valider</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">valider v2</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">valider v3</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -166,6 +166,19 @@ function mailtoDe(v){
   if (!v) return "";
   const i = String(v).indexOf("mailto:");
   return i === -1 ? "" : String(v).slice(i);
+}
+
+// Le mail s'ouvre par un vrai lien, et non par window.open() : depuis l'iframe
+// du widget, window.open() perdait les destinataires en copie.
+function ouvrirMail(url){
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => a.remove(), 0);
 }
 
 // ---------------------------------------------------------------- file
@@ -321,7 +334,7 @@ async function demanderCorrection(id, bouton){
     const lien = (k !== -1 && t.Lien_correction) ? t.Lien_correction[k] : "";
     const url = mailtoDe(lien);
     if (url){
-      window.open(url, "_blank");
+      ouvrirMail(url);
       confirme("La correction est enregistrée. Il ne reste qu'à envoyer le mail "
         + "qui vient de s'ouvrir.");
       alerte("");
