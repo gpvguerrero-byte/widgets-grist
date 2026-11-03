@@ -55,6 +55,8 @@ tbody tr.on{background:var(--bleu-clair)}
 .pill.ambre{background:var(--ambre-f);color:var(--ambre-txt)}
 .pill.gris{background:#ECEFF3;color:#5A6472}
 .pill.rouge{background:var(--rouge-f);color:var(--rouge-txt)}
+.pill.visa{background:#E4F3E6;color:#1E6B2C}
+.statuts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px}
 
 .detail{border-top:3px solid var(--bleu);background:var(--fond);padding:16px 18px 20px}
 .detail h2{margin:0 0 3px;font-size:16px;font-weight:600}
@@ -112,7 +114,7 @@ tbody tr.on{background:var(--bleu-clair)}
 <div class="entete">
   <span class="t">Suivi des demandes</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v7</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v8</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -201,6 +203,18 @@ function ouvrirMail(url){
 
 function enAttente(st){ return st === "A valider" || st === "À valider"; }
 
+// Les visas sont montrés à part du statut : le statut situe la demande dans le
+// circuit, les visas disent quel pôle a visé. Le détail de qui et quand est en
+// infobulle, pour ne pas charger l'affichage.
+function pillsVisa(r){
+  const p = [];
+  if (r.Vise_RH)
+    p.push('<span class="pill visa" title="' + esc(r.Vise_RH_par || "") + '">Visé RH</span>');
+  if (r.Vise_paie)
+    p.push('<span class="pill visa" title="' + esc(r.Vise_paie_par || "") + '">Visé paie</span>');
+  return p.length ? " " + p.join(" ") : "";
+}
+
 function couleurStatut(st){
   if (st === "Validée") return "vert-contour";
   if (st === "A valider" || st === "À valider") return "ambre";
@@ -281,6 +295,7 @@ function dessineTableau(){
           + '<td class="col-num">' + esc(r.Bureau_txt || "") + '</td>'
           + '<td class="col-obj">' + esc(r.Objet || "(sans objet)") + '</td>'
           + '<td><span class="pill ' + couleurStatut(r.Statut) + '">' + esc(r.Statut || "") + '</span>'
+            + pillsVisa(r)
             + (aCorrection(r) ? ' <span class="pill rouge">correction demandée</span>' : '')
           + '</td>'
           + '<td class="col-av">' + esc(etapes.join(" · ")) + '</td>'
@@ -332,6 +347,10 @@ function dessineDetail(){
 
   d.innerHTML =
     '<h2>' + esc(r.Objet || "(sans objet)") + '</h2>'
+    + '<div class="statuts">'
+      + '<span class="pill ' + couleurStatut(r.Statut) + '">' + esc(r.Statut || "") + '</span>'
+      + pillsVisa(r)
+    + '</div>'
     + '<div class="meta">' + esc([r.Numero].concat(meta).filter(Boolean).join(" · ")) + '</div>'
 
     + (aCorrection(r)
