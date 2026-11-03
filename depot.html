@@ -65,7 +65,7 @@ a.btn{display:inline-block;text-decoration:none;box-sizing:border-box}
 </head>
 <body>
 
-<div class="version">dépôt v3</div>
+<div class="version">dépôt v4</div>
 <div class="page" id="page"><div class="attente">Chargement…</div></div>
 
 <script>
@@ -90,6 +90,17 @@ function ids(v){
 function noms(v, table){
   const t = libelles[table] || {};
   return ids(v).map(x => (typeof x === "string") ? x : t[x]).filter(x => x);
+}
+
+function colonneMail(r){
+  const candidates = Object.keys(r).filter(k =>
+    typeof r[k] === "string" && r[k].indexOf("mailto:") !== -1);
+  const avecCopie = candidates.filter(k => r[k].indexOf("cc=") !== -1);
+  const prevenir  = avecCopie.filter(k => r[k].indexOf("Prévenir") !== -1);
+  return {
+    retenue: prevenir[0] || avecCopie[0] || candidates[0] || null,
+    candidates: candidates
+  };
 }
 
 function mailtoDe(v){
@@ -125,7 +136,11 @@ function dessine(){
   if (r.Diffusion_IPROF) diff.push("IPROF");
   if (r.Diffusion_aux_organisations_syndicales) diff.push("Organisations syndicales");
 
-  const url = mailtoDe(r.A);
+  // L'identifiant technique de la colonne qui porte le lien « Prévenir la
+  // cheffe » varie selon l'historique du document, et plusieurs colonnes
+  // peuvent contenir un ancien lien : on retient celle qui a une copie.
+  const infoCol = colonneMail(r);
+  const url = mailtoDe(infoCol.retenue ? r[infoCol.retenue] : "");
 
   p.innerHTML =
     '<div class="alerte" id="alerte"></div>'
@@ -169,11 +184,11 @@ function dessine(){
   // --- diagnostic temporaire -------------------------------------------
   const d = document.getElementById("diag");
   if (d){
-    const brut = (typeof r.A === "object") ? JSON.stringify(r.A) : String(r.A);
     d.innerHTML =
       '<div class="dt">Diagnostic</div>'
-      + '<div><span>A reçu de Grist :</span> ' + esc(brut) + '</div>'
-      + '<div><span>type :</span> ' + esc(Array.isArray(r.A) ? "tableau" : typeof r.A) + '</div>'
+      + '<div><span>colonnes contenant un mailto :</span> '
+        + esc(infoCol.candidates.join(", ") || "aucune") + '</div>'
+      + '<div><span>colonne retenue :</span> ' + esc(infoCol.retenue || "aucune") + '</div>'
       + '<div><span>url extraite :</span> ' + esc(url || "(vide)") + '</div>'
       + '<div><span>href du bouton :</span> <span id="dhref">—</span></div>';
     const bb = document.getElementById("bprev");
