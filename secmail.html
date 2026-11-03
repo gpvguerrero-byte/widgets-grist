@@ -53,6 +53,7 @@ button{font-family:inherit}
 .pill.violet{background:var(--violet-f);color:var(--violet-txt)}
 .pill.ambre{background:var(--ambre-f);color:var(--ambre-txt)}
 .pill.gris{background:#ECEFF3;color:#5A6472}
+.pill.visa{background:#E4F3E6;color:#1E6B2C}
 
 .ligne{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--bord)}
 .ligne .lab{width:96px;flex:none;color:var(--gris);font-size:13px;padding-top:2px}
@@ -102,7 +103,7 @@ a.btn{display:inline-block;text-decoration:none;box-sizing:border-box}
 <div class="entete">
   <span class="t">À envoyer</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">sec mail v3</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">sec mail v4</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -161,6 +162,18 @@ function noms(v, table){
   return ids(v)
     .map(x => (typeof x === "string") ? x : t[x])
     .filter(x => x);
+}
+
+// Les visas sont montrés à part du statut : le statut situe la demande dans le
+// circuit, les visas disent quel pôle a visé. Le détail de qui et quand est en
+// infobulle, pour ne pas charger l'affichage.
+function pillsVisa(r){
+  const p = [];
+  if (r.Vise_RH)
+    p.push('<span class="pill visa" title="' + esc(r.Vise_RH_par || "") + '">Visé RH</span>');
+  if (r.Vise_paie)
+    p.push('<span class="pill visa" title="' + esc(r.Vise_paie_par || "") + '">Visé paie</span>');
+  return p.length ? " " + p.join(" ") : "";
 }
 
 function couleurStatut(st){
@@ -247,6 +260,7 @@ function dessineDetail(){
     '<div class="titre">'
       + '<h1>' + esc(r.Objet || "(sans objet)") + '</h1>'
       + '<span class="pill ' + couleurStatut(r.Statut) + '">' + esc(r.Statut || "") + '</span>'
+      + pillsVisa(r)
     + '</div>'
     + '<div class="meta">' + esc(meta.join(" · ")) + '</div>'
 
