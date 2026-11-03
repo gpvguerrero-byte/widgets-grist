@@ -53,6 +53,7 @@ button,textarea{font-family:inherit}
 .pill.violet{background:var(--violet-f);color:var(--violet-txt)}
 .pill.ambre{background:var(--ambre-f);color:var(--ambre-txt)}
 .pill.gris{background:#ECEFF3;color:#5A6472}
+.pill.visa{background:#E4F3E6;color:#1E6B2C}
 
 .ligne{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--bord)}
 .ligne .lab{width:104px;flex:none;color:var(--gris);font-size:13px;padding-top:2px}
@@ -79,8 +80,12 @@ button,textarea{font-family:inherit}
 .aide{font-size:12px;color:var(--gris-clair)}
 
 .decision{margin-top:18px;padding-top:15px;border-top:1px solid var(--bord);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.visa{margin-top:18px;padding-top:15px;border-top:1px solid var(--bord);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.visa{margin-top:18px;padding-top:15px;border-top:1px solid var(--bord)}
+.visa .vcap{font-size:12px;color:var(--gris-clair);margin-bottom:8px}
+.visa .vligne{display:flex;gap:12px;align-items:center;padding:5px 0}
+.visa .vlab{width:84px;flex:none;font-size:13px;color:var(--gris)}
 .visa .vu{font-size:13px;color:var(--vert-txt);font-weight:600}
+.visa .aide{margin-top:7px;display:block}
 .vise-mini{margin-top:4px;font-size:11px;color:var(--vert-txt)}
 
 .correction{margin-top:16px;background:var(--rouge-f);border:1px solid var(--rouge-bord);border-radius:8px;padding:12px 15px}
@@ -101,7 +106,7 @@ button,textarea{font-family:inherit}
 <div class="entete">
   <span class="t">À valider</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">valider v4</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">valider v8</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -165,6 +170,18 @@ function noms(v, table){
     .filter(x => x);
 }
 
+// Les visas sont montrés à part du statut : le statut situe la demande dans le
+// circuit, les visas disent quel pôle a visé. Le détail de qui et quand est en
+// infobulle, pour ne pas charger l'affichage.
+function pillsVisa(r){
+  const p = [];
+  if (r.Vise_RH)
+    p.push('<span class="pill visa" title="' + esc(r.Vise_RH_par || "") + '">Visé RH</span>');
+  if (r.Vise_paie)
+    p.push('<span class="pill visa" title="' + esc(r.Vise_paie_par || "") + '">Visé paie</span>');
+  return p.length ? " " + p.join(" ") : "";
+}
+
 function mailtoDe(v){
   if (!v) return "";
   const i = String(v).indexOf("mailto:");
@@ -204,7 +221,11 @@ function dessineFile(){
     + '<div class="num">' + esc([r.Numero, r.Bureau_txt, jour(r.Date_demande)]
         .filter(Boolean).join(" · ")) + '</div>'
     + '<div class="obj">' + esc(r.Objet || "(sans objet)") + '</div>'
-    + (r.Vise ? '<div class="vise-mini">✓ visé</div>' : '')
+    + ((r.Vise_RH || r.Vise_paie)
+        ? '<div class="vise-mini">✓ visé '
+          + [r.Vise_RH ? "RH" : null, r.Vise_paie ? "paie" : null].filter(Boolean).join(" · ")
+          + '</div>'
+        : '')
     + '</div>'
   ).join("");
   f.querySelectorAll(".item").forEach(el => {
@@ -213,6 +234,36 @@ function dessineFile(){
 }
 
 // ---------------------------------------------------------------- détail
+// Un visa par pôle, indépendants l'un de l'autre. Une fois posé, le bouton
+// cède la place au nom de qui a visé, ce qui empêche un second visa du même
+// pôle.
+function blocVisa(titre, pose, par, idBouton){
+  return '<div class="vligne">'
+    + (pose
+        ? '<div class="vlab">' + esc(titre) + '</div>'
+          + '<span class="vu">✓ ' + esc(par || "visé") + '</span>'
+        : '<button class="btn sec" id="' + idBouton + '">Visa ' + esc(titre) + '</button>')
+    + '</div>';
+}
+
+// Le mail prévenant la cheffe de division du visa. Il est construit ici et non
+// dans une colonne Grist, ce qui évite deux colonnes de plus.
+const MAIL_CHEFDIV = "dsden59.dpep-chefdiv@ac-lille.fr";
+const PAGE_VALIDATION = "https://grist.numerique.gouv.fr/o/docs/4hQMfgZWDKzf/SEC-MAIL/p/12";
+
+function lienVisa(r, pole){
+  const num = r.Numero || "";
+  const sujet = "SEC MAIL " + (num ? num + " " : "") + "- visa " + pole;
+  const corps = "Bonjour,\n\n"
+    + "Le SEC MAIL " + (num ? num + " " : "")
+    + "« " + (r.Objet || "sans objet") + " » a été visé par le " + pole + ".\n\n"
+    + "Page de validation :\n" + PAGE_VALIDATION + "\n\n"
+    + "Cordialement";
+  return "mailto:" + MAIL_CHEFDIV
+    + "?subject=" + encodeURIComponent(sujet)
+    + "&body=" + encodeURIComponent(corps);
+}
+
 function dessineDetail(){
   const d = $("detail");
   const r = lignes.find(x => x.id === choisie);
@@ -256,6 +307,7 @@ function dessineDetail(){
     '<div class="titre">'
       + '<h1>' + esc(r.Objet || "(sans objet)") + '</h1>'
       + '<span class="pill ambre">' + esc(r.Statut || "") + '</span>'
+      + pillsVisa(r)
     + '</div>'
     + '<div class="meta">' + esc(meta.join(" · ")) + '</div>'
 
@@ -273,11 +325,11 @@ function dessineDetail(){
     + '<div class="pj"><span class="lab">Pièces jointes</span>' + liensPJ + '</div>'
 
     + '<div class="visa">'
-      + (r.Vise
-          ? '<span class="vu">✓ Visé par ' + esc(r.Vise_par || "une adjointe")
-            + (jour(r.Date_visa) ? ' le ' + esc(jour(r.Date_visa)) : '') + '</span>'
-          : '<button class="btn sec" id="bvisa">Viser la demande</button>'
-            + '<span class="aide">une seule adjointe vise ; le visa ne conditionne pas la validation</span>')
+      + '<div class="vcap">Visas</div>'
+      + blocVisa("Pôle RH", r.Vise_RH, r.Vise_RH_par, "bvisaRH")
+      + blocVisa("Pôle paie", r.Vise_paie, r.Vise_paie_par, "bvisaPaie")
+      + '<div class="aide">le visa ouvre un mail pour la cheffe de division ; '
+        + 'il ne conditionne pas la validation</div>'
     + '</div>'
 
     + '<div class="decision">'
@@ -295,8 +347,10 @@ function dessineDetail(){
     + '</div>';
 
   $("tcorr").oninput = e => { brouillons[r.id] = e.target.value; };
-  const bv = $("bvisa");
-  if (bv) bv.onclick = () => viser(r.id, bv);
+  const bRH = $("bvisaRH");
+  if (bRH) bRH.onclick = () => viser(r.id, bRH, "Vise_RH", "Pôle RH");
+  const bPaie = $("bvisaPaie");
+  if (bPaie) bPaie.onclick = () => viser(r.id, bPaie, "Vise_paie", "Pôle paie");
   $("bval").onclick = () => valider(r.id, $("bval"));
   $("bcorr").onclick = () => demanderCorrection(r.id, $("bcorr"));
 }
@@ -307,18 +361,27 @@ function dessine(){ dessineFile(); dessineDetail(); }
 // Le widget ne pose que la case Vise : Grist y attache, par deux formules de
 // déclenchement, le nom de qui a visé et la date. Le visa est indépendant de
 // la validation, qui reste possible sans lui.
-async function viser(id, bouton){
+async function viser(id, bouton, colonne, pole){
+  const r = lignes.find(x => x.id === id);
   bouton.disabled = true;
-  bouton.textContent = "Enregistrement…";
+  bouton.textContent = "…";
+  const champs = {};
+  champs[colonne] = true;
   try {
     await grist.docApi.applyUserActions([
-      ["UpdateRecord", TABLE, id, { Vise: true }]
+      ["UpdateRecord", TABLE, id, champs]
     ]);
     alerte("");
-    confirme("✓ Visa enregistré.");
+    if (r){
+      ouvrirMail(lienVisa(r, pole));
+      confirme("✓ Visa enregistré. Il ne reste qu'à envoyer le mail "
+        + "qui vient de s'ouvrir pour la cheffe de division.");
+    } else {
+      confirme("✓ Visa enregistré.");
+    }
   } catch (e) {
     bouton.disabled = false;
-    bouton.textContent = "Viser la demande";
+    bouton.textContent = "Visa " + pole;
     alerte("Le visa n'a pas pu être enregistré ("
       + (e && e.message ? e.message : e) + ").");
   }
