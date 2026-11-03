@@ -112,7 +112,7 @@ tbody tr.on{background:var(--bleu-clair)}
 <div class="entete">
   <span class="t">Suivi des demandes</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v6</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">suivi v7</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -184,6 +184,19 @@ function mailtoDe(v){
   if (!v) return "";
   const i = String(v).indexOf("mailto:");
   return i === -1 ? "" : String(v).slice(i);
+}
+
+// Le mail s'ouvre par un vrai lien, et non par window.open() : depuis l'iframe
+// du widget, window.open() perdait les destinataires en copie.
+function ouvrirMail(url){
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => a.remove(), 0);
 }
 
 function enAttente(st){ return st === "A valider" || st === "À valider"; }
@@ -377,7 +390,7 @@ function dessineDetail(){
 
   const b = $("brenvoi");
   if (b) b.onclick = () => {
-    window.open(urlRenvoi, "_blank");
+    ouvrirMail(urlRenvoi);
     confirme("Le mail vient de s'ouvrir. Il ne reste qu'à l'envoyer.");
   };
 }
@@ -542,7 +555,7 @@ async function enregistrer(id, bouton, signaler){
       const k = (t.id || []).indexOf(id);
       const url = mailtoDe((k !== -1 && t.Renvoi_demande) ? t.Renvoi_demande[k] : "");
       if (url){
-        window.open(url, "_blank");
+        ouvrirMail(url);
         confirme("Modifications enregistrées. Il ne reste qu'à envoyer le mail "
           + "qui vient de s'ouvrir.");
       } else {
