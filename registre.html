@@ -59,6 +59,8 @@ tbody tr.on{background:var(--bleu-clair)}
 .pill.gris{background:#ECEFF3;color:#5A6472}
 .pill.bleu{background:var(--bleu-clair);color:var(--bleu-txt)}
 .pill.violet{background:var(--violet-f);color:var(--violet-txt)}
+.pill.visa{background:#E4F3E6;color:#1E6B2C}
+.statuts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px}
 
 .detail{border-top:3px solid var(--bleu);background:var(--fond);padding:16px 18px 20px}
 .detail h2{margin:0 0 3px;font-size:16px;font-weight:600}
@@ -86,7 +88,7 @@ tbody tr.on{background:var(--bleu-clair)}
 <div class="entete">
   <span class="t">Registre des SEC MAIL</span>
   <span class="n" id="compte"></span>
-  <span class="v">registre v1</span>
+  <span class="v">registre v3</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -137,6 +139,18 @@ function noms(v, table){
   return ids(v).map(x => (typeof x === "string") ? x : t[x]).filter(x => x);
 }
 function enAttente(st){ return st === "A valider" || st === "À valider"; }
+// Les visas sont montrés à part du statut : le statut situe la demande dans le
+// circuit, les visas disent quel pôle a visé. Le détail de qui et quand est en
+// infobulle, pour ne pas charger l'affichage.
+function pillsVisa(r){
+  const p = [];
+  if (r.Vise_RH)
+    p.push('<span class="pill visa" title="' + esc(r.Vise_RH_par || "") + '">Visé RH</span>');
+  if (r.Vise_paie)
+    p.push('<span class="pill visa" title="' + esc(r.Vise_paie_par || "") + '">Visé paie</span>');
+  return p.length ? " " + p.join(" ") : "";
+}
+
 function couleurStatut(st){
   if (st === "Validée") return "vert-contour";
   if (enAttente(st)) return "ambre";
@@ -230,7 +244,8 @@ function dessineTableau(){
           + '<td class="nw">' + esc(r.Bureau_txt || "") + '</td>'
           + '<td class="nw">' + esc(r.Demandeur || "") + '</td>'
           + '<td>' + esc(r.Objet || "(sans objet)") + '</td>'
-          + '<td><span class="pill ' + couleurStatut(r.Statut) + '">' + esc(r.Statut || "") + '</span></td>'
+          + '<td><span class="pill ' + couleurStatut(r.Statut) + '">' + esc(r.Statut || "") + '</span>'
+            + pillsVisa(r) + '</td>'
           + '<td class="nw gris">' + esc(jour(r.Date_validation)) + '</td>'
           + '<td class="nw gris">' + esc(jour(r.Date_envoi)) + '</td>'
           + '<td class="nw gris">' + (nbPJ || "") + '</td>'
@@ -281,6 +296,10 @@ function dessineDetail(){
 
   d.innerHTML =
     '<h2>' + esc(r.Objet || "(sans objet)") + '</h2>'
+    + '<div class="statuts">'
+      + '<span class="pill ' + couleurStatut(r.Statut) + '">' + esc(r.Statut || "") + '</span>'
+      + pillsVisa(r)
+    + '</div>'
     + '<div class="meta">' + esc([r.Numero, r.Bureau_txt, r.Demandeur].filter(Boolean).join(" · ")) + '</div>'
     + '<div class="ligne"><div class="lab">Avancement</div><div class="val">'
       + (etapes.length ? esc(etapes.join(" · ")) : '<span class="rien">—</span>') + '</div></div>'
@@ -312,6 +331,8 @@ function exporteCSV(){
     ["Departement",   r => noms(r.Departement, null).join(", ")],
     ["Objet",         r => r.Objet],
     ["Statut",        r => r.Statut],
+    ["Visa pole RH",   r => r.Vise_RH_par || (r.Vise_RH ? "oui" : "")],
+    ["Visa pole paie", r => r.Vise_paie_par || (r.Vise_paie ? "oui" : "")],
     ["Date validation", r => jour(r.Date_validation)],
     ["Valide par",    r => r.Valide_par],
     ["Date envoi",    r => jour(r.Date_envoi)],
