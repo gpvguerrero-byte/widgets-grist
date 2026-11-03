@@ -57,11 +57,15 @@ a.btn{display:inline-block;text-decoration:none;box-sizing:border-box}
 .confirme{margin:0 0 18px;padding:11px 14px;border-radius:8px;background:var(--vert-f);color:var(--vert);font-size:13px}
 .confirme:empty{display:none}
 .version{position:absolute;top:8px;right:12px;font-size:11px;color:#C3CBD5}
+.diag{margin-top:26px;padding:12px 14px;border:1px dashed #C3CBD5;border-radius:8px;
+  font-size:12px;color:var(--gris);line-height:1.7;word-break:break-all}
+.diag .dt{font-weight:600;color:var(--texte);margin-bottom:4px}
+.diag span{color:var(--gris-clair)}
 </style>
 </head>
 <body>
 
-<div class="version">dépôt v2</div>
+<div class="version">dépôt v3</div>
 <div class="page" id="page"><div class="attente">Chargement…</div></div>
 
 <script>
@@ -158,7 +162,24 @@ function dessine(){
     + '</div>'
 
     + '<div class="note">Tant que votre demande n\'est pas validée, vous pouvez la corriger '
-      + 'depuis la page <strong>Suivi des demandes</strong>.</div>';
+      + 'depuis la page <strong>Suivi des demandes</strong>.</div>'
+
+    + '<div class="diag" id="diag"></div>';
+
+  // --- diagnostic temporaire -------------------------------------------
+  const d = document.getElementById("diag");
+  if (d){
+    const brut = (typeof r.A === "object") ? JSON.stringify(r.A) : String(r.A);
+    d.innerHTML =
+      '<div class="dt">Diagnostic</div>'
+      + '<div><span>A reçu de Grist :</span> ' + esc(brut) + '</div>'
+      + '<div><span>type :</span> ' + esc(Array.isArray(r.A) ? "tableau" : typeof r.A) + '</div>'
+      + '<div><span>url extraite :</span> ' + esc(url || "(vide)") + '</div>'
+      + '<div><span>href du bouton :</span> <span id="dhref">—</span></div>';
+    const bb = document.getElementById("bprev");
+    const dh = document.getElementById("dhref");
+    if (dh) dh.textContent = bb ? (bb.getAttribute("href") || "(aucun)") : "(bouton absent)";
+  }
 
   // Le bouton est un vrai lien : le clic de l'utilisateur transmet l'URL
   // entière au client de messagerie. window.open() depuis l'iframe du widget
