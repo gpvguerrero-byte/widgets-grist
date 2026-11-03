@@ -106,7 +106,7 @@ button,textarea{font-family:inherit}
 <div class="entete">
   <span class="t">À valider</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">valider v8</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">valider v11</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -246,10 +246,30 @@ function blocVisa(titre, pose, par, idBouton){
     + '</div>';
 }
 
-// Le mail prévenant la cheffe de division du visa. Il est construit ici et non
-// dans une colonne Grist, ce qui évite deux colonnes de plus.
+// Les mails sont construits ici et non dans des colonnes Grist, ce qui évite
+// autant de colonnes de formules. En contrepartie, les adresses et les liens
+// des pages se modifient dans ce fichier : ils sont tous réunis ci-dessous.
 const MAIL_CHEFDIV = "dsden59.dpep-chefdiv@ac-lille.fr";
+const MAIL_SEC     = "dsden59.dpep-sec@ac-lille.fr";
+// Adresses génériques mises en copie du mail de validation. Vide : pas de copie.
+const COPIE_SEC    = ["dsden59.dpep-polerh@ac-lille.fr",
+                      "dsden59.dpep-polepaie@ac-lille.fr"];
 const PAGE_VALIDATION = "https://grist.numerique.gouv.fr/o/docs/4hQMfgZWDKzf/SEC-MAIL/p/12";
+const PAGE_ENVOIS     = "https://grist.numerique.gouv.fr/o/docs/4hQMfgZWDKzf/SEC-MAIL/p/13";
+
+function lienValidation(r){
+  const num = r.Numero || "";
+  const sujet = "SEC MAIL " + (num ? num + " " : "") + "- validé, à envoyer";
+  const corps = "Bonjour,\n\n"
+    + "Le SEC MAIL " + (num ? num + " " : "")
+    + "« " + (r.Objet || "sans objet") + " » est validé et peut être envoyé.\n\n"
+    + "Page des envois :\n" + PAGE_ENVOIS + "\n\n"
+    + "Cordialement";
+  return "mailto:" + MAIL_SEC
+    + "?" + (COPIE_SEC.length ? "cc=" + COPIE_SEC.join(",") + "&" : "")
+    + "subject=" + encodeURIComponent(sujet)
+    + "&body=" + encodeURIComponent(corps);
+}
 
 function lienVisa(r, pole){
   const num = r.Numero || "";
@@ -334,7 +354,7 @@ function dessineDetail(){
 
     + '<div class="decision">'
       + '<button class="btn valide" id="bval">Valider la demande</button>'
-      + '<span class="aide">elle passera au secrétariat pour envoi</span>'
+      + '<span class="aide">un mail s\'ouvrira pour prévenir le secrétariat</span>'
     + '</div>'
 
     + '<div class="correction">'
@@ -400,8 +420,15 @@ async function valider(id, bouton){
       }]
     ]);
     alerte("");
-    confirme("✓ " + (num ? num + " — validée" : "Demande validée")
-      + ". Elle est maintenant visible par le secrétariat.");
+    if (r){
+      ouvrirMail(lienValidation(r));
+      confirme("✓ " + (num ? num + " — validée" : "Demande validée")
+        + ". Il ne reste qu'à envoyer le mail qui vient de s'ouvrir "
+        + "pour prévenir le secrétariat.");
+    } else {
+      confirme("✓ " + (num ? num + " — validée" : "Demande validée")
+        + ". Elle est maintenant visible par le secrétariat.");
+    }
   } catch (e) {
     bouton.disabled = false;
     bouton.textContent = "Valider la demande";
