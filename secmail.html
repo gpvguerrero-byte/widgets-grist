@@ -72,6 +72,7 @@ button{font-family:inherit}
 
 .actions{margin-top:18px;padding-top:15px;border-top:1px solid var(--bord);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .btn{border:none;border-radius:8px;padding:9px 18px;font-size:14px;cursor:pointer}
+a.btn{display:inline-block;text-decoration:none;box-sizing:border-box}
 .btn.prim{background:var(--bleu);color:#fff}
 .btn.prim:hover{background:#17304F}
 .btn.sec{background:#fff;color:var(--texte);border:1px solid #B9C2CE}
@@ -101,7 +102,7 @@ button{font-family:inherit}
 <div class="entete">
   <span class="t">À envoyer</span>
   <span class="n" id="compte"></span>
-  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">sec mail v2</span>
+  <span style="font-size:11px;color:#7E9BBD;margin-left:12px">sec mail v3</span>
 </div>
 
 <div class="alerte" id="alerte"></div>
@@ -261,7 +262,7 @@ function dessineDetail(){
 
     + '<div class="actions">'
       + (url
-          ? '<button class="btn prim" id="bmail">Ouvrir le mail</button>'
+          ? '<a class="btn prim" id="bmail" href="' + esc(url) + '" target="_blank" rel="noopener">Ouvrir le mail</a>'
           : '<button class="btn prim" disabled>Ouvrir le mail</button>')
       + '<span class="aide">destinataires, objet et message déjà remplis</span>'
     + '</div>'
@@ -279,7 +280,9 @@ function dessineDetail(){
             + '<span class="aide">le statut et la date d\'envoi sont enregistrés</span>')
     + '</div>';
 
-  if (url) $("bmail").onclick = () => { window.open(url, "_blank"); };
+  // Le bouton est un vrai lien : le clic de l'utilisateur transmet l'URL
+  // entière au client de messagerie. window.open() depuis l'iframe du widget
+  // perdait les destinataires en copie.
   const b = $("benv");
   if (b) b.onclick = () => marquerEnvoyee(r.id, b);
 }
